@@ -9,6 +9,7 @@ import 'package:shared_preferences/shared_preferences.dart';
 import 'package:shiaverse/library_repository.dart';
 import 'package:shiaverse/models.dart';
 import 'package:shiaverse/screens/shia_ai_screen.dart';
+import 'package:shiaverse/screens/xplore_xtra_screen.dart';
 import 'package:shiaverse/shia_ai/shia_ai_engine.dart';
 import 'package:shiaverse/shia_ai/shia_ai_gateway.dart';
 import 'package:shiaverse/shia_ai/shia_ai_models.dart';
@@ -773,6 +774,24 @@ void main() {
       await tester.pumpAndSettle();
       expect(find.textContaining('کوئی عبارت نہیں ملی'), findsOneWidget);
       expect(gateway.calls, 0);
+    });
+
+    testWidgets('Xplore Xtra exposes a ShiaAi card that opens the chat',
+        (tester) async {
+      await tester.pumpWidget(MaterialApp(
+        debugShowCheckedModeBanner: false,
+        home: XploreXtraScreen(library: _FakeLibrary()),
+      ));
+      await tester.pumpAndSettle();
+
+      final card = find.text('ShiaAi — ذہین سوال و جواب');
+      expect(card, findsOneWidget);
+      await tester.ensureVisible(card);
+      await tester.pumpAndSettle();
+      await tester.tap(card);
+      await tester.pumpAndSettle();
+
+      expect(find.byType(ShiaAiChatScreen), findsOneWidget);
     });
   });
 }

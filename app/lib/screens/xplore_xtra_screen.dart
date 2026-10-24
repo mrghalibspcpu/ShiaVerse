@@ -5,12 +5,14 @@ import 'package:flutter/material.dart';
 import '../app_theme.dart';
 import '../library_repository.dart';
 import 'daily_study_screen.dart';
+import 'shia_ai_screen.dart';
 
-/// A practical shelf for small utilities, starting with the reading plan.
+/// A practical shelf for small utilities, starting with ShiaAi and the
+/// reading plan.
 ///
-/// Only **روزانہ مطالعہ** exists today; the rest of the shelf is marked as
-/// coming soon with a plain container, so nothing on it promises a feature
-/// that is not in the app yet.
+/// **ShiaAi** and **روزانہ مطالعہ** ship today; the rest of the shelf is
+/// marked as coming soon with a plain container, so nothing on it promises a
+/// feature that is not in the app yet.
 class XploreXtraScreen extends StatelessWidget {
   const XploreXtraScreen({super.key, required this.library});
 
@@ -49,6 +51,19 @@ class XploreXtraScreen extends StatelessWidget {
                 ),
                 const SizedBox(height: 14),
                 _XtraCard(
+                  icon: Icons.auto_awesome_rounded,
+                  title: 'ShiaAi — ذہین سوال و جواب',
+                  subtitle:
+                      'اپنی نصب شدہ کتب میں سے متعلقہ عبارتیں خود تلاش کرتا ہے اور انہی مصدقہ حوالوں کے ساتھ جواب دیتا ہے۔ آن لائن خلاصہ اختیاری ہے اور Gemini کلید صرف آپ کے اپنے سرور پر رہتی ہے۔',
+                  accent: const Color(0xFF0E7A6D),
+                  badge: 'ابھی دستیاب',
+                  onTap: () => unawaited(Navigator.of(context).push(
+                      MaterialPageRoute<void>(
+                          builder: (_) =>
+                              ShiaAiChatScreen(library: library)))),
+                ),
+                const SizedBox(height: 12),
+                _XtraCard(
                   icon: Icons.event_available_rounded,
                   title: 'روزانہ مطالعہ',
                   subtitle: 'قرآن اور نہج البلاغہ کی ایک یا چند کتابیں ہیں ساتھ ہی: اپنا ہدف منتخب کریں، آج کا حصہ فوراً کھولیں اور اپنی پیش رفت و مسلسل دن محفوظ رکھیں۔ مکمل طور پر آف لائن۔',
@@ -63,7 +78,7 @@ class XploreXtraScreen extends StatelessWidget {
                 const SizedBox(height: 10),
                 _ComingSoonTile(icon: Icons.notifications_active_rounded, title: 'نرم روزانہ یاددہانی', accent: const Color(0xFFB08B42)),
                 const SizedBox(height: 16),
-                const JustifiedText('فی الحال روزانہ مطالعہ مکمل طور پر کام کرتا ہے؛ باقی سہولتیں آنے والی تازہ کاریوں میں شامل ہوں گی۔', style: TextStyle(fontSize: 12, height: 1.7, color: Color(0xFFB9CEC4))),
+                const JustifiedText('فی الحال ShiaAi اور روزانہ مطالعہ مکمل طور پر کام کرتے ہیں؛ باقی سہولتیں آنے والی تازہ کاریوں میں شامل ہوں گی۔', style: TextStyle(fontSize: 12, height: 1.7, color: Color(0xFFB9CEC4))),
               ],
             ),
           ),

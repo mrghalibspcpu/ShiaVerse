@@ -9,7 +9,6 @@ import '../data_packages.dart';
 import '../library_repository.dart';
 import '../widgets/reader_kit.dart';
 import 'data_screen.dart';
-import '../shia_ai/shia_ai_settings.dart';
 import 'shia_ai_screen.dart';
 
 class SettingsScreen extends StatefulWidget {
@@ -432,21 +431,16 @@ class _SettingsScreenState extends State<SettingsScreen> {
                           style: TextStyle(fontWeight: FontWeight.bold),
                         ),
                         subtitle: const JustifiedText(
-                          'گیٹ وے کا پتہ اور آن لائن خلاصے کی اجازت؛ کلید صرف سرور پر',
+                          'سوال و جواب کھولیں؛ گیٹ وے کی ترتیب چیٹ کے ترتیبات بٹن سے، کلید صرف سرور پر',
                           maxLines: 2,
                         ),
                         trailing: const Icon(Icons.chevron_left),
-                        onTap: () async {
-                          final preferences =
-                              await ShiaAiPreferences.load();
-                          if (!context.mounted) return;
-                          await showModalBottomSheet<bool>(
-                            context: context,
-                            isScrollControlled: true,
+                        onTap: () => unawaited(
+                          Navigator.of(context).push(MaterialPageRoute<void>(
                             builder: (_) =>
-                                ShiaAiSettingsSheet(initial: preferences),
-                          );
-                        },
+                                ShiaAiChatScreen(library: widget.library),
+                          )),
+                        ),
                       ),
                     ],
                   ),

@@ -62,6 +62,12 @@ was changed. The retriever only *reads* through the existing
 `LibraryRepository` API (`searchMany`, which uses the same FTS/LIKE machinery as
 the unified search screen).
 
+**Entry points.** The radial Xplore plate only renders its six curated
+features, so ShiaAi is opened from **Xplore → Xplore Xtra → "ShiaAi — ذہین
+سوال و جواب"** (first card) and from **Settings → "ShiaAi — ذہین سوال و
+جواب"**. Both routes push the same `ShiaAiChatScreen`; its app-bar gear opens
+the gateway/consent settings sheet.
+
 ## 2. Retrieval and multilingual handling
 
 * **Arabic / Urdu:** the existing `normalizeArabicUrdu` already removes harakat
@@ -153,7 +159,9 @@ cd backend/shia-ai-gateway
 npm install
 npx wrangler deploy
 npx wrangler secret put GEMINI_API_KEY   # stored only at Cloudflare
-# then in the app: Xplore → ShiaAi → ترتیبات → enable online mode, paste URL
+# then in the app: Xplore → Xplore Xtra → ShiaAi → ترتیبات (gear) →
+# enable online mode, paste the gateway URL
+# (Settings → "ShiaAi — ذہین سوال و جواب" opens the same chat)
 ```
 
 The same worker logic ports to any HTTPS host (Cloud Function, Lambda, small

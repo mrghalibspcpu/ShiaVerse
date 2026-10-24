@@ -21,7 +21,6 @@ import 'screens/prayer_times_screen.dart';
 import 'screens/qibla_screen.dart';
 import 'screens/search_screen.dart';
 import 'screens/settings_screen.dart';
-import 'screens/shia_ai_screen.dart';
 import 'screens/tasbeeh_screen.dart';
 import 'screens/xplore_xtra_screen.dart';
 import 'services/community_stats.dart';
@@ -261,17 +260,9 @@ class _ShiaLibraryAppState extends State<ShiaLibraryApp> {
   /// The collections (نہج البلاغہ، دینی مسائل…) are NOT repeated here: they
   /// already live on the home screen's own cards.
   List<MoreFeature> _moreFeatures(BuildContext homeContext) => <MoreFeature>[
-        // ShiaAi leads Xplore: a source-grounded question/answer flow over the
-        // installed corpus, with verified citations opening the exact record.
-        MoreFeature(
-          title: 'ShiaAi',
-          subtitle: 'سوال پوچھیں — جواب نصب شدہ کتب سے، مصدقہ حوالہ جات کے ساتھ',
-          icon: Icons.auto_awesome,
-          color: const Color(0xFF0E7A6D),
-          onOpen: () => unawaited(_navigatorKey.currentState?.push(MaterialPageRoute<void>(
-            builder: (_) => ShiaAiChatScreen(library: _library),
-          ))),
-        ),
+        // ShiaAi is opened from Xplore → Xplore Xtra (and from Settings).
+        // The radial Xplore plate renders only its six curated features, so it
+        // is intentionally not listed here.
         MoreFeature(
           title: 'نئی کتابیں',
           subtitle: 'شیعہ اردو ویکیپیڈیا — مضامین، ائمہ اور اصل ماخذ کے لنکس',

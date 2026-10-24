@@ -5,7 +5,9 @@ description: Offline Shia library — Quran, Mafatih al-Jinan, Nahj al-Balagha, 
 # Split APKs of 1.26/1.27 used Flutter's ABI offset (arm64 was 2036), and a
 # lower code is rejected as "package appears to be invalid".
 # 1.27.2: source-grounded ShiaAi (local retrieval + opt-in gateway synthesis).
-version: 1.27.2+10039
+# 1.27.3: ShiaAi entry points on Xplore Xtra and Settings (radial Xplore
+# plate only renders its six curated features).
+version: 1.27.3+10040
 
 environment:
   sdk: ">=3.4.0 <4.0.0"

@@ -261,7 +261,9 @@ all run on the device.
 > code from verified record IDs, and every citation opens the exact verse /
 > hadith / fatwa / dua in the existing reader. When the network, key or quota is
 > unavailable — or the corpus simply lacks evidence — ShiaAi abstains plainly
-> instead of inventing answers. See [`docs/shia-ai.md`](docs/shia-ai.md).
+> instead of inventing answers. Open it from **Xplore → Xplore Xtra →
+> ShiaAi** or **Settings → ShiaAi**. See
+> [`docs/shia-ai.md`](docs/shia-ai.md).
 > Apart from this opt-in flow and the optional corpus download described below,
 > the app stays fully offline.
 
