@@ -706,21 +706,29 @@ class _CornerPlate extends StatelessWidget {
                 final size = Size(constraints.maxWidth, constraints.maxHeight);
                 final centre = geometry.incentre(size);
                 final buttonSize = math.min(64.0, width * 0.17);
+                // On a short plate the caption under the button would run
+                // past the plate's bottom edge and be clipped in half. The
+                // button is smaller than the triangle's inscribed circle,
+                // so the pair can step up a little until the caption fits.
+                const labelHeight = 22.0;
+                final overflow =
+                    centre.dy + buttonSize / 2 + 2 + labelHeight - size.height;
+                final shift = overflow.clamp(0.0, 12.0);
                 return Stack(
                   clipBehavior: Clip.none,
                   children: <Widget>[
                     Positioned(
                       left: centre.dx - buttonSize / 2,
-                      top: centre.dy - buttonSize / 2,
+                      top: centre.dy - shift - buttonSize / 2,
                       width: buttonSize,
                       height: buttonSize,
                       child: _RadialButton(open: open, size: buttonSize),
                     ),
                     Positioned(
                       left: centre.dx - size.width * 0.34,
-                      top: centre.dy + buttonSize / 2 + 2,
+                      top: centre.dy - shift + buttonSize / 2 + 2,
                       width: size.width * 0.68,
-                      height: 22,
+                      height: labelHeight,
                       child: FittedBox(
                         fit: BoxFit.scaleDown,
                         child: Text(

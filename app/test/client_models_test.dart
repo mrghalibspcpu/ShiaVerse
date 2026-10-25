@@ -45,9 +45,10 @@ void main() {
 
   group('corpus catalogue', () {
     test('lists the 14 hadith books plus the curated collections', () {
-      // Ten extra collections: Quran, Mafatih, Sahifa, Nahj al-Balagha, the
-      // curated encyclopaedia and the three marjas.
-      expect(BookDefinition.all, hasLength(22));
+      // Seven curated collections beside the hadith books: Quran, Mafatih,
+      // Sahifa, Nahj al-Balagha, the encyclopaedia and the two marjas (the
+      // third marja's edition was removed in 1.28).
+      expect(BookDefinition.all, hasLength(21));
       expect(BookDefinition.hadithBooks, hasLength(14));
       expect(
         BookDefinition.newBooks.map((book) => book.key),
