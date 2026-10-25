@@ -2,7 +2,7 @@
   "format_version": 2,
   "source_app": "Ahadith al Shia Urdu 1.0.1 corpus plus the Quran, Mafatih al-Jinan, and Nahj al-Balagha collections",
   "sqlite_page_size": 1024,
-  "database_count": 22,
+  "database_count": 21,
   "totals": {
     "hadith_records": 96513,
     "sections": 17855,
@@ -12,8 +12,8 @@
     "dua_items": 677,
     "dua_lines": 5378,
     "balagha_paragraphs": 3742,
-    "sahifa_rows": 4993,
-    "fatwa_answers": 10151,
+    "sahifa_rows": 2103,
+    "fatwa_answers": 9723,
     "balagha_sections": 810
   },
   "download": {
@@ -254,20 +254,6 @@
       }
     },
     {
-      "name": "khamenei_urdu_fatawa.sqlite",
-      "key": "khamenei",
-      "source": "fatwa",
-      "title_urdu": "فتاویٰ — آیت اللہ خامنہ ای",
-      "title_latin": "Khamenei Urdu Fatawa",
-      "record_label": "مسئلہ",
-      "size_bytes": 1490944,
-      "sha256": "5053c5cc2cf81a60ab9603aac744d70064f1c310eaee36c1841c807127bdd45e",
-      "records": {
-        "question_answers": 428,
-        "categories": 35
-      }
-    },
-    {
       "name": "mafatihdb-v4.db",
       "key": "mafatih",
       "source": "dua",
@@ -332,11 +318,11 @@
       "title_urdu": "صحیفہ سجادیہ",
       "title_latin": "Sahifa Sajjadiyya",
       "record_label": "دعا",
-      "size_bytes": 2777088,
-      "sha256": "a823946073716788ee5b1c6c28394deed95372798d71735e95268569e5a420e9",
+      "size_bytes": 2801664,
+      "sha256": "ad65542a5d430be203500464355d67148b774632cd12b8918808998724fc4f05",
       "records": {
-        "saheefa_data": 4993,
-        "saheefa_index": 148
+        "saheefa_data": 2103,
+        "saheefa_index": 83
       }
     },
     {

@@ -187,8 +187,8 @@ def main() -> int:
     manifest = json.loads(MANIFEST_PATH.read_text(encoding="utf-8"))
     entries = {row["name"]: row for row in manifest.get("databases", [])}
     check(
-        "manifest lists 22 databases",
-        manifest.get("database_count") == 22 and len(entries) == 22,
+        "manifest lists 21 databases",
+        manifest.get("database_count") == 21 and len(entries) == 21,
         f"{len(entries)} entries",
     )
 

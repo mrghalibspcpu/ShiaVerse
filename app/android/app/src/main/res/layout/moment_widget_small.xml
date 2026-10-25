@@ -46,14 +46,17 @@
             android:tint="#FFE2AF" />
     </LinearLayout>
 
+    <!-- As on the full plate, the provider sizes this text from its length;
+         it may wrap to five short lines before the ellipsis is allowed. -->
     <TextView
         android:id="@+id/moment_text"
         android:layout_width="match_parent"
         android:layout_height="0dp"
         android:layout_weight="1"
+        android:ellipsize="end"
         android:gravity="center_vertical"
         android:lineSpacingExtra="2dp"
-        android:maxLines="2"
+        android:maxLines="5"
         android:textColor="#FFF9EF"
         android:textDirection="anyRtl"
         android:textSize="14sp"

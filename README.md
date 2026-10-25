@@ -1,5 +1,46 @@
 # ShiaVerse
 
+## New in 1.28 — one marja fewer, a new Sahifa, every book a study plan
+
+- **دینی مسائل keeps two marjas.** The آیت اللہ خامنہ ای Urdu fatawa edition
+  is removed from the app, the corpus manifest and the downloads, at the
+  owner's request (آیت اللہ سیستانی and آیت اللہ حافظ بشیر حسین نجفی remain).
+  A copy already downloaded is deleted on the next launch, and the data
+  screen never offers the book again, even while an older published
+  manifest still names it. The corpus is 21 databases now.
+- **صحیفہ سجادیہ is the new Drive edition** (`Sahifa_Sajjadiyya_83_duas`):
+  exactly the 83 supplications — 2,103 Arabic/Urdu rows, no site furniture —
+  replacing the old runtime file in `assets/` and in both manifests. The
+  Drive مفاتیح الجنان file turned out byte-for-byte identical to
+  `mafatihdb-v4.db` (same MD5), so that book needed no change. Phones that
+  already hold the old Sahifa see **«نیا ایڈیشن دستیاب ہے»** in ڈیٹا: the
+  installer notices the size change, downloads the new file, and the
+  library re-reads and re-indexes it (`refreshAfterUpdate`).
+- **Xplore sits below the status bar** instead of running full-screen under
+  it, with light status icons on the dark strip. **All five amber lenses
+  are one size** and **all three red triangle plates are one size** (the
+  left wedge now shares the corner plates' box), and the triangle text —
+  the wordmark, «انسائکلوپیڈیا», the radial-menu caption and its button —
+  is a step larger.
+- **روزانہ مطالعہ accepts every installed book, added one by one.** Beside
+  the Quran and Nahj al-Balagha tracks, each installed collection can join
+  the plan on its own: hadith books walk their ابواب, مفاتیح الجنان and
+  صحیفہ سجادیہ their دعائیں, the fatawa their زمرے, the encyclopaedia its
+  مضامین. Old plans load unchanged.
+- **The launcher widget adjusts instead of cutting.** It re-cuts its plate
+  the moment it is resized (`onAppWidgetOptionsChanged`; on Android 12+ a
+  responsive two-plate `RemoteViews`), keeps the hour's line stable across
+  resizes, rolls to a new line **every hour** (`updatePeriodMillis`
+  3600000), and sizes the text by its length — short ayat/ahadith large,
+  long ones a step smaller but never below a readable 11.5sp, wrapped
+  inside the cell instead of clipped.
+- **قرآنِ کریم has one jump**: «سورہ / آیت پر جائیں». The separate
+  go-to-mushaf-page button and field are gone; the page reader itself
+  remains for the daily portion of روزانہ مطالعہ.
+- Version 1.28.0 (versionCode 10041) — above the unpublished 1.27.3
+  attempt (10040), so it installs over it and over 1.27.1 without losing
+  downloaded books.
+
 ## New in 1.24 — the lens plate, a third marja, the notes in their place
 
 - **The three red plates of Xplore are triangles, as in the artwork.** The

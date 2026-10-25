@@ -1,10 +1,12 @@
 name: shiaverse
 publish_to: "none"
 description: Offline Shia library — Quran, Mafatih al-Jinan, Nahj al-Balagha, and 14 hadith books.
-# The number after + is Android versionCode. It must stay above 10038.
+# The number after + is Android versionCode. It must stay above 10040.
 # Split APKs of 1.26/1.27 used Flutter's ABI offset (arm64 was 2036), and a
-# lower code is rejected as "package appears to be invalid".
-version: 1.27.1+10038
+# lower code is rejected as "package appears to be invalid". 1.27.3 (an
+# unpublished attempt on another branch) already used 10040, so 1.28 starts
+# at 10041 to install over it.
+version: 1.28.0+10041
 
 environment:
   sdk: ">=3.4.0 <4.0.0"
@@ -50,7 +52,6 @@ flutter:
     # The HashTech mark: the studio's own artwork, shown in Settings › کریڈٹس
     # and reused unchanged as the APKPure listing icon (docs/store/).
     - assets/images/hashtech.png
-    - assets/images/marja_khamenei.png
     - assets/images/marja_sistani.png
     # 1.24: the marja portrait for آیت اللہ حافظ بشیر حسین نجفی (دینی مسائل),
     # cropped from the 554 px upload to the 288 x 420 frame the other two use.

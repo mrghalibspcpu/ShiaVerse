@@ -22,7 +22,7 @@ class FullSearchCoverageTests(unittest.TestCase):
             'encyclopedia': 'FROM sections AS s JOIN articles AS a ON a.id = s.article_id\n          ORDER BY s.article_id, s.ordinal',
         }
         with collect_databases() as collected:
-            self.assertEqual(len(collected), 22)
+            self.assertEqual(len(collected), 21)
             for spec, path in collected:
                 with self.subTest(book=spec.key), sqlite3.connect(path) as db:
                     query = extract_query(fragments[spec.source])
@@ -60,10 +60,13 @@ class FullSearchCoverageTests(unittest.TestCase):
                     elif spec.source == 'fatwa':
                         self.assertEqual(
                             len(seen),
-                            {'khamenei': 428, 'sistani': 1619, 'najafi': 8104}[spec.key],
+                            {'sistani': 1619, 'najafi': 8104}[spec.key],
                         )
                     elif spec.source == 'sahifa':
-                        self.assertEqual(len(seen), 4318)
+                        # The 1.28 Drive edition (Sahifa_Sajjadiyya_83_duas)
+                        # carries only the 83 supplications themselves:
+                        # 2,103 Arabic/Urdu rows and nothing else.
+                        self.assertEqual(len(seen), 2103)
                         self.assertEqual(
                             db.execute("SELECT COUNT(DISTINCT t_id * 10000 + t_no) FROM saheefa_data "
                                        "WHERE t_id IN (1, 2, 3, 4)").fetchone()[0],
@@ -72,7 +75,7 @@ class FullSearchCoverageTests(unittest.TestCase):
                         self.assertEqual(
                             {r[0] for r in db.execute(
                                 'SELECT DISTINCT oe FROM saheefa_data WHERE t_id IN (1, 2, 3, 4)')},
-                            {'a', 'u', 'v', 'f'},
+                            {'a', 'u'},
                         )
 
     def test_all_6236_verses_and_last_juz_are_available_to_paginated_search(self):

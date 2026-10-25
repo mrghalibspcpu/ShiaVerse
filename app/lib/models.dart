@@ -32,7 +32,8 @@ const String kFatawaCollectionTitle = 'دینی مسائل (احکام و فتا
 const String kFatawaCollectionSubtitle = 'فتاویٰ، احکامِ شرعیہ اور سوال و جواب';
 const String kFatawaCollectionHint = 'اپنا مرجعِ تقلید منتخب کریں';
 
-/// Every fatwa book, in marja order (Khamenei, Sistani, then Najafi).
+/// Every fatwa book, in marja order (Sistani, then Najafi). The Khamenei
+/// edition was removed in 1.28 at the owner's request.
 List<BookDefinition> get fatawaBooks =>
     BookDefinition.all.where((book) => book.source == CorpusSource.fatwa).toList();
 
@@ -99,11 +100,6 @@ class BookDefinition {
     BookDefinition(key: 'sahifa', fileName: 'Sahifa_Sajjadiyya_full_runtime.sqlite3',
       titleUrdu: 'صحیفہ سجادیہ', titleLatin: 'Sahifa Sajjadiyya',
       description: 'دعائیں، مناجات، ترجمہ اور حواشی', source: CorpusSource.sahifa, recordLabel: 'دعا'),
-    BookDefinition(key: 'khamenei', fileName: 'khamenei_urdu_fatawa.sqlite',
-      titleUrdu: 'فتاویٰ — آیت اللہ خامنہ ای', titleLatin: 'Khamenei Urdu Fatawa',
-      description: 'اردو سوال و جواب، اصل ماخذ کے ساتھ', source: CorpusSource.fatwa, recordLabel: 'مسئلہ',
-      imageAsset: 'assets/images/marja_khamenei.png',
-      marjaName: 'آیت اللہ سید علی خامنہ ای'),
     BookDefinition(key: 'sistani', fileName: 'sistani_urdu_fatawa.sqlite',
       titleUrdu: 'فتاویٰ — آیت اللہ سیستانی', titleLatin: 'Sistani Urdu Fatawa',
       description: 'اردو سوال و جواب، اصل ماخذ کے ساتھ', source: CorpusSource.fatwa, recordLabel: 'مسئلہ',

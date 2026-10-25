@@ -8,12 +8,27 @@ import '../library_repository.dart';
 import '../models.dart';
 import '../text_utils.dart' show arabicNumerals;
 import 'balagha_screen.dart';
+import 'duas_screen.dart';
+import 'library_screen.dart';
 import 'quran_screen.dart';
+
+/// What one portion of a library book counts, in the reader's words: the
+/// ابواب of an hadith book, the دعائیں of Mafatih and the Sahifa, the
+/// زمرے of a fatawa collection, the مضامین of the encyclopaedia.
+String studyBookUnitLabel(BookDefinition book) => switch (book.source) {
+      CorpusSource.hadith => 'باب',
+      CorpusSource.sahifa => 'دعا',
+      CorpusSource.dua => 'دعا',
+      CorpusSource.fatwa => 'زمرہ',
+      CorpusSource.encyclopedia => 'مضمون',
+      _ => 'نمبر',
+    };
 
 /// **روزانہ مطالعہ** — the Xplore feature that turns the library into a habit.
 ///
-/// A reader picks one book (the Quran, or one section of Nahj al-Balagha) —
-/// or several books at once — and a length in days; the screen works out
+/// A reader picks one book (the Quran, one section of Nahj al-Balagha, or
+/// any installed library book) — or several books at once — and a length in
+/// days; the screen works out
 /// today's portion of every one of them from the plan's start day, opens the
 /// reader at exactly that page/entry, and keeps the streak. Nothing is
 /// downloaded and nothing leaves the phone — the portion is pure arithmetic
@@ -37,7 +52,24 @@ class _DailyStudyScreenState extends State<DailyStudyScreen> {
   /// for naming the entry a day opens on — one list per book of the plan.
   final Map<StudyTrack, List<BalaghaEntry>> _entries = <StudyTrack, List<BalaghaEntry>>{};
   final Map<StudyTrack, int> _units = <StudyTrack, int>{};
+
+  /// The same two facts for the library books of the plan (by book key):
+  /// their ordered sections (or, for Mafatih, their ordered supplications)
+  /// and how many of them there are.
+  final Map<String, List<({int id, String title})>> _bookSections =
+      <String, List<({int id, String title})>>{};
+  final Map<String, List<DuaItem>> _duaItems = <String, List<DuaItem>>{};
+  final Map<String, int> _bookUnits = <String, int>{};
   String? _dataMissing;
+
+  /// Books the picker can add beyond the classic tracks: everything
+  /// installed that the Quran and Nahj al-Balagha tracks do not already
+  /// cover — the hadith collections, Mafatih, the Sahifa, the fatawa and
+  /// the encyclopaedia, each added on its own.
+  List<BookDefinition> get _genericBooks => widget.library.installedBooks
+      .where((book) =>
+          book.source != CorpusSource.quran && book.source != CorpusSource.balagha)
+      .toList();
 
   @override
   void initState() {
@@ -52,15 +84,19 @@ class _DailyStudyScreenState extends State<DailyStudyScreen> {
       _plan = plan;
       _loading = false;
     });
-    if (plan != null) await _measure(plan.tracks);
+    if (plan != null) await _measureAll(plan);
   }
 
-  /// How many units every chosen track has, asked of the library itself so the
+  /// How many units every chosen book has, asked of the library itself so the
   /// plan never promises a length the installed data cannot fill.
-  Future<void> _measure(List<StudyTrack> tracks) async {
+  Future<void> _measureAll(StudyPlan plan) async {
     final units = <StudyTrack, int>{};
     final entries = <StudyTrack, List<BalaghaEntry>>{};
+    final bookUnits = <String, int>{};
+    final bookSections = <String, List<({int id, String title})>>{};
+    final duaItems = <String, List<DuaItem>>{};
     String? missing;
+    final tracks = plan.tracks;
     final quranInstalled =
         widget.library.installedBooks.any((book) => book.source == CorpusSource.quran);
     final balaghaInstalled =
@@ -90,6 +126,35 @@ class _DailyStudyScreenState extends State<DailyStudyScreen> {
       units[track] = list.length;
       if (list.isEmpty) missing ??= 'اس حصے کا متن ابھی دستیاب نہیں۔';
     }
+    // The library books of the plan: counted by their sections (Mafatih by
+    // its supplications, category after category, headers left out).
+    for (final key in plan.bookKeys) {
+      final book = BookDefinition.byKey(key);
+      if (book == null) continue; // a book this app no longer carries
+      if (!widget.library.isInstalled(book)) {
+        missing ??= '«${book.titleUrdu}» ابھی انسٹال نہیں — ڈیٹا سیکشن سے ڈاؤن لوڈ کریں۔';
+        continue;
+      }
+      try {
+        if (book.source == CorpusSource.dua) {
+          final items = <DuaItem>[];
+          for (final category in await widget.library.getDuaCategories()) {
+            for (final item in await widget.library.getDuaItems(category.id)) {
+              if (!item.isHeader) items.add(item);
+            }
+          }
+          duaItems[key] = items;
+          bookUnits[key] = items.length;
+        } else {
+          final sections = await widget.library.getBookSectionsInOrder(book);
+          bookSections[key] = sections;
+          bookUnits[key] = sections.length;
+        }
+      } catch (_) {
+        bookUnits[key] = 0;
+      }
+      if ((bookUnits[key] ?? 0) <= 0) missing ??= 'اس کتاب کا متن ابھی دستیاب نہیں۔';
+    }
     if (!mounted) return;
     setState(() {
       _entries
@@ -98,15 +163,25 @@ class _DailyStudyScreenState extends State<DailyStudyScreen> {
       _units
         ..clear()
         ..addAll(units);
+      _bookSections
+        ..clear()
+        ..addAll(bookSections);
+      _duaItems
+        ..clear()
+        ..addAll(duaItems);
+      _bookUnits
+        ..clear()
+        ..addAll(bookUnits);
       _dataMissing = missing;
     });
   }
 
-  Future<void> _start(List<StudyTrack> tracks, int days) async {
-    if (tracks.isEmpty) return;
+  Future<void> _start(List<StudyTrack> tracks, List<String> bookKeys, int days) async {
+    if (tracks.isEmpty && bookKeys.isEmpty) return;
     final plan = StudyPlan(
-      track: tracks.first,
-      extraTracks: tracks.skip(1).toList(),
+      track: tracks.isEmpty ? null : tracks.first,
+      extraTracks: tracks.isEmpty ? const <StudyTrack>[] : tracks.skip(1).toList(),
+      bookKeys: bookKeys,
       days: days,
       startedOn: studyDayKey(DateTime.now()),
     );
@@ -116,9 +191,12 @@ class _DailyStudyScreenState extends State<DailyStudyScreen> {
       _plan = plan;
       _entries.clear();
       _units.clear();
+      _bookSections.clear();
+      _duaItems.clear();
+      _bookUnits.clear();
       _dataMissing = null;
     });
-    await _measure(plan.tracks);
+    await _measureAll(plan);
   }
 
   Future<void> _toggleDay(int day) async {
@@ -150,6 +228,9 @@ class _DailyStudyScreenState extends State<DailyStudyScreen> {
       _plan = null;
       _entries.clear();
       _units.clear();
+      _bookSections.clear();
+      _duaItems.clear();
+      _bookUnits.clear();
       _dataMissing = null;
     });
   }
@@ -190,6 +271,44 @@ class _DailyStudyScreenState extends State<DailyStudyScreen> {
     ));
   }
 
+  /// Opens a library book of the plan at the first section of today's
+  /// portion. The section reader's own next/previous walk then carries the
+  /// reader through the rest of the day's sections in order.
+  Future<void> _openBookPortion(BookDefinition book, StudyPortion portion) async {
+    if (book.source == CorpusSource.dua) {
+      final items = _duaItems[book.key] ?? const <DuaItem>[];
+      if (items.isEmpty) return;
+      final item = items[(portion.first - 1).clamp(0, items.length - 1)];
+      await Navigator.of(context).push(MaterialPageRoute<void>(
+        builder: (_) => DuaReaderScreen(library: widget.library, item: item),
+      ));
+      return;
+    }
+    final sections = _bookSections[book.key] ?? const <({int id, String title})>[];
+    if (sections.isEmpty) return;
+    final section = sections[(portion.first - 1).clamp(0, sections.length - 1)];
+    await Navigator.of(context).push(MaterialPageRoute<void>(
+      builder: (_) => ReaderScreen(
+        library: widget.library,
+        book: book,
+        sectionId: section.id,
+        sectionTitle: section.title.isEmpty ? book.titleUrdu : section.title,
+      ),
+    ));
+  }
+
+  /// The heading of the unit a generic portion opens on, for its card.
+  String _portionHeadline(BookDefinition book, StudyPortion portion) {
+    if (book.source == CorpusSource.dua) {
+      final items = _duaItems[book.key] ?? const <DuaItem>[];
+      if (items.isEmpty) return '';
+      return items[(portion.first - 1).clamp(0, items.length - 1)].name;
+    }
+    final sections = _bookSections[book.key] ?? const <({int id, String title})>[];
+    if (sections.isEmpty) return '';
+    return sections[(portion.first - 1).clamp(0, sections.length - 1)].title;
+  }
+
   @override
   Widget build(BuildContext context) {
     return Scaffold(
@@ -222,7 +341,7 @@ class _DailyStudyScreenState extends State<DailyStudyScreen> {
                     const _StudyIntro(),
                     const SizedBox(height: 16),
                     if (_plan == null)
-                      _PlanBuilder(active: false, onStart: _start)
+                      _PlanBuilder(active: false, onStart: _start, genericBooks: _genericBooks)
                     else
                       ..._planBody(_plan!),
                   ],
@@ -241,11 +360,23 @@ class _DailyStudyScreenState extends State<DailyStudyScreen> {
       for (final track in plan.tracks)
         if ((_units[track] ?? 0) > 0) track,
     ];
-    if (ready.isEmpty) {
+    final readyBooks = <BookDefinition>[
+      for (final key in plan.bookKeys)
+        if ((_bookUnits[key] ?? 0) > 0 && BookDefinition.byKey(key) != null)
+          BookDefinition.byKey(key)!,
+    ];
+    if (ready.isEmpty && readyBooks.isEmpty) {
       return <Widget>[
         if (_dataMissing != null) _Notice(_dataMissing!),
         const SizedBox(height: 14),
-        _PlanBuilder(active: true, onStart: _start, initialTracks: plan.tracks, initialDays: plan.days),
+        _PlanBuilder(
+          active: true,
+          onStart: _start,
+          genericBooks: _genericBooks,
+          initialTracks: plan.tracks,
+          initialBookKeys: plan.bookKeys,
+          initialDays: plan.days,
+        ),
       ];
     }
     // A plan day beyond the book's length (the reader finished early or the
@@ -262,22 +393,43 @@ class _DailyStudyScreenState extends State<DailyStudyScreen> {
           ),
         ),
     ];
+    final bookPortions = <(BookDefinition, StudyPortion)>[
+      for (final book in readyBooks)
+        (
+          book,
+          StudyPortion.forDay(
+            day: today,
+            days: plan.days,
+            totalUnits: _bookUnits[book.key]!,
+            unitLabelUrdu: studyBookUnitLabel(book),
+          ),
+        ),
+    ];
     final done = plan.completedDays.length;
     final streak = studyStreak(plan, today);
     final finished = today > plan.days || (done >= plan.days);
-    final day = portions.first.$2.day;
+    final day = today.clamp(1, plan.days);
     return <Widget>[
       for (final (track, portion) in portions) ...<Widget>[
         _TodayCard(
-          track: track,
+          title: track.titleUrdu,
           portion: portion,
           onOpen: () => unawaited(_openPortion(track, portion)),
         ),
         const SizedBox(height: 12),
       ],
+      for (final (book, portion) in bookPortions) ...<Widget>[
+        _TodayCard(
+          title: book.titleUrdu,
+          portion: portion,
+          headline: _portionHeadline(book, portion),
+          onOpen: () => unawaited(_openBookPortion(book, portion)),
+        ),
+        const SizedBox(height: 12),
+      ],
       _DayCard(
         finished: plan.completedDays.contains(day) || finished,
-        books: ready.length,
+        books: ready.length + readyBooks.length,
         onToggle: () => unawaited(_toggleDay(day)),
       ),
       const SizedBox(height: 14),
@@ -376,13 +528,20 @@ class _PlanBuilder extends StatefulWidget {
   const _PlanBuilder({
     required this.active,
     required this.onStart,
+    required this.genericBooks,
     this.initialTracks,
+    this.initialBookKeys,
     this.initialDays,
   });
 
   final bool active;
-  final void Function(List<StudyTrack> tracks, int days) onStart;
+  final void Function(List<StudyTrack> tracks, List<String> bookKeys, int days) onStart;
+
+  /// Installed library books that can be added one by one, beside the
+  /// classic Quran / Nahj al-Balagha tracks.
+  final List<BookDefinition> genericBooks;
   final List<StudyTrack>? initialTracks;
+  final List<String>? initialBookKeys;
   final int? initialDays;
 
   @override
@@ -393,18 +552,34 @@ class _PlanBuilderState extends State<_PlanBuilder> {
   static const List<int> _lengths = <int>[7, 14, 30, 60, 90, 180];
 
   late List<StudyTrack> _tracks = <StudyTrack>[
-    ...(widget.initialTracks ?? const <StudyTrack>[StudyTrack.quran]),
+    ...(widget.initialTracks ??
+        (widget.initialBookKeys?.isNotEmpty == true
+            ? const <StudyTrack>[]
+            : const <StudyTrack>[StudyTrack.quran])),
   ];
+  late List<String> _bookKeys = <String>[...(widget.initialBookKeys ?? const <String>[])];
   late int _days = widget.initialDays ?? 90;
+
+  int get _selectionCount => _tracks.length + _bookKeys.length;
 
   /// Adds or removes a book. The last one never goes: a plan without a book
   /// has nothing to read.
   void _toggle(StudyTrack track) {
     setState(() {
       if (_tracks.contains(track)) {
-        if (_tracks.length > 1) _tracks.remove(track);
+        if (_selectionCount > 1) _tracks.remove(track);
       } else {
         _tracks.add(track);
+      }
+    });
+  }
+
+  void _toggleBook(BookDefinition book) {
+    setState(() {
+      if (_bookKeys.contains(book.key)) {
+        if (_selectionCount > 1) _bookKeys.remove(book.key);
+      } else {
+        _bookKeys.add(book.key);
       }
     });
   }
@@ -432,12 +607,45 @@ class _PlanBuilderState extends State<_PlanBuilder> {
           ),
           const SizedBox(height: 10),
           for (final track in StudyTrack.values) ...<Widget>[
-            _TrackRow(
-              track: track,
+            _SelectionRow(
+              title: track.titleUrdu,
+              subtitle: track.subtitleUrdu,
               selected: _tracks.contains(track),
               onTap: () => _toggle(track),
             ),
             const SizedBox(height: 8),
+          ],
+          // Every other installed book, added on its own: an hadith
+          // collection walks its ابواب, Mafatih and the Sahifa their
+          // دعائیں, the encyclopaedia its مضامین.
+          if (widget.genericBooks.isNotEmpty) ...<Widget>[
+            const SizedBox(height: 6),
+            const JustifiedText(
+              'انسٹال شدہ کتب سے',
+              style: TextStyle(fontSize: 15, fontWeight: FontWeight.w800, color: Color(0xFFFFE1A1)),
+            ),
+            const SizedBox(height: 4),
+            const JustifiedText(
+              'ہر کتاب الگ شامل کریں — وہ اپنے ابواب / دعاؤں / مضامین میں دنوں پر تقسیم ہو جائے گی۔',
+              style: TextStyle(fontSize: 11.5, height: 1.6, color: Color(0xFFB9CEC4)),
+            ),
+            const SizedBox(height: 10),
+            for (final book in widget.genericBooks) ...<Widget>[
+              _SelectionRow(
+                title: book.titleUrdu,
+                subtitle: book.description.isEmpty ? book.source.label : book.description,
+                selected: _bookKeys.contains(book.key),
+                onTap: () => _toggleBook(book),
+              ),
+              const SizedBox(height: 8),
+            ],
+          ] else ...<Widget>[
+            const SizedBox(height: 2),
+            const JustifiedText(
+              'مزید کتابیں (کتبِ احادیث، مفاتیح الجنان، صحیفہ سجادیہ…) ڈیٹا سیکشن سے انسٹال کرنے کے بعد یہیں سے الگ الگ شامل کی جا سکیں گی۔',
+              style: TextStyle(fontSize: 11.5, height: 1.6, color: Color(0xFFB9CEC4)),
+            ),
+            const SizedBox(height: 6),
           ],
           const SizedBox(height: 6),
           const JustifiedText(
@@ -466,7 +674,8 @@ class _PlanBuilderState extends State<_PlanBuilder> {
           ),
           const SizedBox(height: 16),
           FilledButton.icon(
-            onPressed: _tracks.isEmpty ? null : () => widget.onStart(_tracks, _days),
+            onPressed:
+                _selectionCount == 0 ? null : () => widget.onStart(_tracks, _bookKeys, _days),
             icon: const Icon(Icons.play_arrow_rounded),
             label: JustifiedText(widget.active ? 'منصوبہ نئے سرے سے شروع کریں' : 'منصوبہ شروع کریں'),
             style: FilledButton.styleFrom(
@@ -488,10 +697,18 @@ class _PlanBuilderState extends State<_PlanBuilder> {
   }
 }
 
-class _TrackRow extends StatelessWidget {
-  const _TrackRow({required this.track, required this.selected, required this.onTap});
+/// One pickable book of the plan — a classic track or an installed library
+/// book, drawn the same either way.
+class _SelectionRow extends StatelessWidget {
+  const _SelectionRow({
+    required this.title,
+    required this.subtitle,
+    required this.selected,
+    required this.onTap,
+  });
 
-  final StudyTrack track;
+  final String title;
+  final String subtitle;
   final bool selected;
   final VoidCallback onTap;
 
@@ -525,7 +742,7 @@ class _TrackRow extends StatelessWidget {
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: <Widget>[
                     JustifiedText(
-                      track.titleUrdu,
+                      title,
                       style: TextStyle(
                         fontSize: 14.5,
                         fontWeight: FontWeight.w700,
@@ -534,7 +751,7 @@ class _TrackRow extends StatelessWidget {
                     ),
                     const SizedBox(height: 2),
                     JustifiedText(
-                      track.subtitleUrdu,
+                      subtitle,
                       style: const TextStyle(fontSize: 11.5, height: 1.5, color: Color(0xFFB9CEC4)),
                     ),
                   ],
@@ -551,14 +768,20 @@ class _TrackRow extends StatelessWidget {
 /// Today's portion of one book of the plan, with the button that opens it.
 class _TodayCard extends StatelessWidget {
   const _TodayCard({
-    required this.track,
+    required this.title,
     required this.portion,
     required this.onOpen,
+    this.headline = '',
   });
 
-  final StudyTrack track;
+  final String title;
   final StudyPortion portion;
   final VoidCallback onOpen;
+
+  /// Where the portion begins, in the book's own words (the باب / دعا /
+  /// مضمون the reader opens on). Empty for the classic tracks, whose range
+  /// already names the place.
+  final String headline;
 
   @override
   Widget build(BuildContext context) {
@@ -586,7 +809,7 @@ class _TodayCard extends StatelessWidget {
           ),
           const SizedBox(height: 6),
           JustifiedText(
-            track.titleUrdu,
+            title,
             style: const TextStyle(fontSize: 18, fontWeight: FontWeight.w800, color: Colors.white),
           ),
           const SizedBox(height: 6),
@@ -599,6 +822,14 @@ class _TodayCard extends StatelessWidget {
               color: Color(0xFFFFE1A1),
             ),
           ),
+          if (headline.trim().isNotEmpty) ...<Widget>[
+            const SizedBox(height: 2),
+            JustifiedText(
+              'آغاز: ${headline.trim()}',
+              style: const TextStyle(fontSize: 12.5, height: 1.6, color: Color(0xFFD9EAE2)),
+              maxLines: 2,
+            ),
+          ],
           const SizedBox(height: 4),
           JustifiedText(
             'کل ${arabicNumerals(portion.totalUnits)} میں سے، ${arabicNumerals(portion.days)} دن کے منصوبے میں',

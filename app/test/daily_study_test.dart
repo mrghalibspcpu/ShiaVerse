@@ -210,6 +210,53 @@ void main() {
       expect(plan.tracks, <StudyTrack>[StudyTrack.quran]);
     });
 
+    test('a plan can walk library books named by key, alone or alongside', () async {
+      SharedPreferences.setMockInitialValues(<String, Object>{});
+      // A plan of library books only: no classic track at all.
+      final plan = StudyPlan(
+        bookKeys: <String>['alkafi', 'sahifa'],
+        days: 60,
+        startedOn: '2026-10-20',
+        completedDays: <int>{3},
+      );
+      expect(plan.track, isNull);
+      expect(plan.tracks, isEmpty);
+      expect(plan.selectionCount, 2);
+      expect(plan.isMultiBook, isTrue);
+      await StudyPlanStore().save(plan);
+
+      final restored = await StudyPlanStore().load();
+      expect(restored, isNotNull);
+      expect(restored!.bookKeys, <String>['alkafi', 'sahifa']);
+      expect(restored.completedDays, <int>{3});
+
+      // And alongside a classic track, in the same plan.
+      const mixed = StudyPlan(
+        track: StudyTrack.quran,
+        bookKeys: <String>['mafatih'],
+        days: 30,
+        startedOn: '2026-10-20',
+      );
+      expect(mixed.selectionCount, 2);
+      expect(mixed.copyWith(bookKeys: <String>[]).selectionCount, 1);
+    });
+
+    test('an old plan without book keys still loads, a bookless one does not', () async {
+      SharedPreferences.setMockInitialValues(<String, Object>{
+        'daily_study_plan_v1':
+            '{"track":"quran","days":30,"startedOn":"2026-10-20"}',
+      });
+      final plan = await StudyPlanStore().load();
+      expect(plan, isNotNull);
+      expect(plan!.bookKeys, isEmpty);
+      expect(plan.selectionCount, 1);
+
+      SharedPreferences.setMockInitialValues(<String, Object>{
+        'daily_study_plan_v1': '{"days":30,"startedOn":"2026-10-20"}',
+      });
+      expect(await StudyPlanStore().load(), isNull);
+    });
+
     test('every book of a plan is split over the same days', () {
       // Two books of very different lengths, one plan: both portions end on
       // their own last unit on the last day.

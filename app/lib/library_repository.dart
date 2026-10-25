@@ -131,6 +131,19 @@ class LibraryRepository {
     final appDatabasePath = await getDatabasesPath();
     _databaseDirectory = p.join(appDatabasePath, 'shia_library');
     await Directory(_databaseDirectory).create(recursive: true);
+    // Books removed from the corpus leave their downloaded file behind on
+    // phones that already fetched it (the Khamenei fatawa in 1.28). Delete
+    // the orphan so "removed" means removed, not merely hidden.
+    for (final orphan in const <String>['khamenei_urdu_fatawa.sqlite']) {
+      final file = File(p.join(_databaseDirectory, orphan));
+      if (await file.exists()) {
+        try {
+          await file.delete();
+        } catch (_) {
+          // A locked file must not stop the library from opening.
+        }
+      }
+    }
     // The launcher widget opens these files itself. It cannot guess the
     // subdirectory, so the path is written beside the prayer times it already
     // reads.
@@ -277,6 +290,59 @@ class LibraryRepository {
     }
     await _runExclusive(() async {
       await _refreshSearchIndex(onProgress ?? (_, __) {});
+      _searchReady = true;
+      indexProgress.value = const IndexBuildState.done();
+    });
+  }
+
+  /// Re-reads one book whose file was REPLACED by a newer edition (the data
+  /// screen's update path), as opposed to [refreshAfterInstall], which only
+  /// notices books that were missing.
+  ///
+  /// The open handle still points at the old file's bytes and the search
+  /// index still holds the old edition's words, so both are dropped here:
+  /// close the database, forget the book's indexed rows, then let the usual
+  /// index refresh walk the new file. With the FTS mirror in use a partial
+  /// delete could leave stale mirrors behind, so the index is marked not
+  /// ready and rebuilt whole — the same safe path a cold start takes.
+  Future<void> refreshAfterUpdate(String bookKey) async {
+    final book = BookDefinition.byKey(bookKey);
+    if (book == null) return;
+    if (!_initialized) {
+      await initialize(onProgress: (_, __) {});
+      return;
+    }
+    final open = _bookDatabases.remove(book.key);
+    if (open != null) await open.close();
+    final index = _searchDatabase;
+    if (index != null) {
+      await index.delete('search_docs', where: 'book = ?', whereArgs: [book.key]);
+      await index.delete('search_meta', where: 'key = ?', whereArgs: ['indexed:${book.key}']);
+      if (_ftsAvailable) {
+        await index.update(
+          'search_meta',
+          {'value': '0'},
+          where: 'key = ?',
+          whereArgs: const ['ready'],
+        );
+      }
+    }
+    final file = File(p.join(_databaseDirectory, book.fileName));
+    if (await file.exists() && await file.length() > 0) {
+      _installed.add(book.key);
+      try {
+        await _ensureReaderIndexes(book);
+      } catch (_) {
+        _installed.remove(book.key);
+      }
+    }
+    _bumpCatalog();
+    if (_indexing) {
+      _indexAgain = true;
+      return;
+    }
+    await _runExclusive(() async {
+      await _refreshSearchIndex((_, __) {});
       _searchReady = true;
       indexProgress.value = const IndexBuildState.done();
     });
@@ -920,6 +986,37 @@ class LibraryRepository {
       'SELECT ID, title, Chapid, Secid FROM Sections WHERE Chapid = ? ORDER BY Secid',
       [chapterId],
     );
+  }
+
+  /// Every section (باب / دعا / مضمون) of [book] in reading order, across
+  /// chapter boundaries — the same walk the section reader uses for its
+  /// next/previous navigation.
+  ///
+  /// **روزانہ مطالعہ** measures a book with this: one section is one unit of
+  /// the plan, and today's portion opens at the section the arithmetic lands
+  /// on. Works for the section-shaped collections (hadith, Sahifa, fatawa,
+  /// encyclopaedia); the Quran, Mafatih and Nahj al-Balagha keep their own
+  /// walks and return an empty list here.
+  Future<List<({int id, String title})>> getBookSectionsInOrder(BookDefinition book) async {
+    if (!_installed.contains(book.key)) return const [];
+    if (book.source == CorpusSource.quran ||
+        book.source == CorpusSource.dua ||
+        book.source == CorpusSource.balagha) {
+      return const [];
+    }
+    final ordered = <({int id, String title})>[];
+    final seen = <int>{};
+    final chapters = await getChapters(book);
+    for (final chapter in chapters) {
+      final chapterId = _asInt(chapter['cid']) ?? _asInt(chapter['ID']) ?? 0;
+      final sections = await getSections(book, chapterId);
+      for (final section in sections) {
+        final sectionId = _asInt(section['Secid']) ?? _asInt(section['ID']);
+        if (sectionId == null || !seen.add(sectionId)) continue;
+        ordered.add((id: sectionId, title: (section['title'] ?? '').toString()));
+      }
+    }
+    return ordered;
   }
 
   Future<List<Passage>> getSectionPassages(BookDefinition book, int sectionId) async {

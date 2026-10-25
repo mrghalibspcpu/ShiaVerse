@@ -19,12 +19,13 @@ import prepare_databases  # noqa: E402
 
 
 class DatabaseSpecTests(unittest.TestCase):
-    def test_catalogue_covers_twenty_two_databases(self):
-        self.assertEqual(len(DATABASES), 22)
+    def test_catalogue_covers_twenty_one_databases(self):
+        self.assertEqual(len(DATABASES), 21)
         self.assertEqual(len([spec for spec in DATABASES if spec.source == "hadith"]), 14)
-        # 8 curated standalones (Quran, Mafatih, Sahifa, the three marjas,
-        # the encyclopaedia and Najafi) — 14 hadith books + 8 = 22.
-        self.assertEqual(len(EXTRA_DATABASES), 8)
+        # 7 curated standalones (Quran, Mafatih, Sahifa, the two marjas and
+        # the encyclopaedia) — 14 hadith books + 7 = 21. The Khamenei
+        # edition was removed in 1.28.
+        self.assertEqual(len(EXTRA_DATABASES), 7)
 
     def test_keys_and_file_names_are_unique(self):
         keys = [spec.key for spec in DATABASES]
@@ -80,8 +81,9 @@ class ManifestTests(unittest.TestCase):
 
     def test_manifest_is_version_two_and_complete(self):
         self.assertEqual(self.manifest["format_version"], 2)
-        self.assertEqual(self.manifest["database_count"], 22)
-        self.assertEqual(len(self.manifest["databases"]), 22)
+        # 21 since 1.28: the Khamenei Urdu fatawa edition was removed.
+        self.assertEqual(self.manifest["database_count"], 21)
+        self.assertEqual(len(self.manifest["databases"]), 21)
 
     def test_every_entry_carries_a_digest_and_titles(self):
         for entry in self.manifest["databases"]:

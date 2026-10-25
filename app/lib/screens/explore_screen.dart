@@ -1,14 +1,16 @@
 import 'dart:math' as math;
 
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 
 import '../widgets/more_features.dart';
 import '../widgets/reading_hub.dart';
 
-/// Full-screen Xplore dashboard.
+/// The Xplore dashboard, filling the screen below the status bar.
 ///
 /// The page is the camera-lens plate of the reference artwork, in portrait:
-/// five amber lenses on a brushed-metal body, and three red plates cut into
+/// five amber lenses (all one size) on a brushed-metal body, and three red
+/// plates (also all one size) cut into
 /// the edges of that body — the brand wedge in the top-right corner, the
 /// pointing wedge on the left edge, and the corner wedge in the bottom-right
 /// that carries the radial-menu button. Lens one sits top-left, lens two
@@ -90,21 +92,32 @@ class _ExploreScreenState extends State<ExploreScreen> with RouteAware {
     final extra = _feature('Xplore Xtra');
     final encyclopedia = _feature('اثنا عشری انسائکلوپیڈیا');
 
-    return Scaffold(
+    // The whole plate sits BELOW the status bar (and above the navigation
+    // bar): readers asked for the clock and the signal icons to stay visible
+    // instead of the machine running edge to edge under them. The scaffold's
+    // dark background fills the strip the bars leave, and the overlay style
+    // paints the status icons light so they read against it.
+    return AnnotatedRegion<SystemUiOverlayStyle>(
+      value: SystemUiOverlayStyle.light,
+      child: Scaffold(
       backgroundColor: const Color(0xFF0B1218),
-      body: LayoutBuilder(builder: (context, constraints) {
+      body: SafeArea(
+      child: LayoutBuilder(builder: (context, constraints) {
         final width = constraints.maxWidth;
         final height = constraints.maxHeight;
         final padding = MediaQuery.paddingOf(context);
-        // Lenses stay inside the safe area so a status bar never covers a
-        // control. The three red plates are aligned to the SCREEN, not to that
-        // inset: the left wedge's base is the left edge and its midpoint is
-        // the screen's vertical centre; the top-right and bottom-right plates
-        // are the same size and sit flush in their corners.
+        // Inside the SafeArea the remaining padding is whatever the safe
+        // area did not consume (normally zero), so the plates are flush with
+        // the safe box: the left wedge's base is its left edge and its
+        // midpoint is the box's vertical centre; all three red plates share
+        // one size and sit flush in their corners.
         final safeLeft = padding.left;
         final safeTop = padding.top;
         final safeWidth = math.max(1.0, width - padding.left - padding.right);
         final safeHeight = math.max(1.0, height - padding.top - padding.bottom);
+        // Every lens is cut the same size (readers asked for one size, not a
+        // big-mid-small staircase): the diagonal climb comes from the
+        // centres below, not from the diameters.
         final lens = math.min(safeWidth * 0.40, safeHeight * 0.20);
         final brand = _PlateGeometry.brand(width, height);
         final wedge = _PlateGeometry.wedge(width, height);
@@ -179,7 +192,7 @@ class _ExploreScreenState extends State<ExploreScreen> with RouteAware {
                   ),
                   at(
                     Offset(safeWidth * 0.505, safeHeight * 0.335),
-                    lens * 1.08,
+                    lens,
                     _LensControl(
                       title: 'نماز',
                       subtitle: 'اوقات و قرات',
@@ -190,7 +203,7 @@ class _ExploreScreenState extends State<ExploreScreen> with RouteAware {
                   ),
                   at(
                     Offset(safeWidth * 0.795, safeHeight * 0.505),
-                    lens * 0.94,
+                    lens,
                     _LensControl(
                       title: 'چاند کی رویت',
                       subtitle: 'رویتِ ہلال',
@@ -212,7 +225,7 @@ class _ExploreScreenState extends State<ExploreScreen> with RouteAware {
                   ),
                   at(
                     Offset(safeWidth * 0.215, safeHeight * 0.838),
-                    lens * 0.88,
+                    lens,
                     _LensControl(
                       title: 'Xplore Xtra',
                       subtitle: 'روزانہ مطالعہ',
@@ -235,6 +248,8 @@ class _ExploreScreenState extends State<ExploreScreen> with RouteAware {
           ],
         );
       }),
+      ),
+      ),
     );
   }
 }
@@ -301,10 +316,11 @@ class _PlateGeometry {
   /// The wedge on the left edge: its base is the edge of the body itself and
   /// its point reaches into the plate. The caller centres this box on the
   /// screen's vertical midline, so the base's midpoint is the centre of the
-  /// left edge.
+  /// left edge. Same box as the two corner plates — all three triangles of
+  /// the plate are one size, as readers asked.
   factory _PlateGeometry.wedge(double width, double height) => _PlateGeometry(
-        width: width * 0.40,
-        height: height * 0.36,
+        width: width * _cornerWidth,
+        height: height * _cornerHeight,
         vertices: const <Offset>[Offset(0, 0), Offset(0, 1), Offset(1, 0.5)],
       );
 
@@ -316,7 +332,7 @@ class _PlateGeometry {
         vertices: const <Offset>[Offset(1, 0), Offset(1, 1), Offset(0, 1)],
       );
 
-  /// Shared by the two right-hand plates so they stay equal as the phone changes.
+  /// Shared by all three plates so they stay equal as the phone changes.
   static const double _cornerWidth = 0.50;
   static const double _cornerHeight = 0.22;
 
@@ -514,8 +530,8 @@ class _BrandPlate extends StatelessWidget {
           final centre = geometry.incentre(size);
           // The wordmark lies along the hypotenuse, at the angle of the plate.
           final angle = math.atan2(size.height, size.width);
-          final blockWidth = size.width * 0.44;
-          const blockHeight = 42.0;
+          final blockWidth = size.width * 0.48;
+          const blockHeight = 52.0;
           return Stack(
             clipBehavior: Clip.none,
             children: <Widget>[
@@ -535,7 +551,7 @@ class _BrandPlate extends StatelessWidget {
                           'Xplore',
                           style: TextStyle(
                             fontFamily: 'sans-serif',
-                            fontSize: 21,
+                            fontSize: 25,
                             height: 1.05,
                             fontWeight: FontWeight.w800,
                             letterSpacing: .8,
@@ -547,7 +563,7 @@ class _BrandPlate extends StatelessWidget {
                           'by ShiaVerse',
                           style: TextStyle(
                             fontFamily: 'sans-serif',
-                            fontSize: 10.5,
+                            fontSize: 12.5,
                             letterSpacing: 1.1,
                             color: Color(0xCCFFFFFF),
                           ),
@@ -592,16 +608,20 @@ class _WedgePlate extends StatelessWidget {
               builder: (context, constraints) {
                 final size = Size(constraints.maxWidth, constraints.maxHeight);
                 final centre = geometry.incentre(size);
-                const iconSize = 38.0;
-                final labelWidth = size.width * 0.62;
+                const iconSize = 40.0;
+                // The stack (glyph over its two lines) is centred on the
+                // incentre — the one spot with room on every side — since
+                // the wedge now shares the corner plates' shorter, wider
+                // box. The label is narrower than the wedge's midline so
+                // its lower line stays inside the sloping edges.
+                final labelWidth = size.width * 0.46;
+                final labelLeft = math.max(4.0, centre.dx - labelWidth / 2);
                 return Stack(
                   clipBehavior: Clip.none,
                   children: <Widget>[
-                    // The glyph sits above the middle of the wedge, where the
-                    // triangle is still wide enough to hold it.
                     Positioned(
                       left: centre.dx - iconSize / 2,
-                      top: size.height * 0.39 - iconSize / 2,
+                      top: centre.dy - iconSize - 2,
                       width: iconSize,
                       height: iconSize,
                       child: const Icon(
@@ -611,10 +631,10 @@ class _WedgePlate extends StatelessWidget {
                       ),
                     ),
                     Positioned(
-                      left: centre.dx - labelWidth / 2,
-                      top: size.height * 0.485,
+                      left: labelLeft,
+                      top: centre.dy + 2,
                       width: labelWidth,
-                      height: 32,
+                      height: 40,
                       child: const FittedBox(
                         fit: BoxFit.scaleDown,
                         child: Column(
@@ -623,7 +643,7 @@ class _WedgePlate extends StatelessWidget {
                             Text(
                               'انسائکلوپیڈیا',
                               style: TextStyle(
-                                fontSize: 13,
+                                fontSize: 16,
                                 height: 1.2,
                                 fontWeight: FontWeight.w800,
                                 color: Colors.white,
@@ -632,7 +652,7 @@ class _WedgePlate extends StatelessWidget {
                             Text(
                               'بارہ ائمہ • عقائد',
                               style: TextStyle(
-                                fontSize: 9.5,
+                                fontSize: 11.5,
                                 height: 1.3,
                                 color: Color(0xFFFFD9C9),
                               ),
@@ -685,7 +705,7 @@ class _CornerPlate extends StatelessWidget {
               builder: (context, constraints) {
                 final size = Size(constraints.maxWidth, constraints.maxHeight);
                 final centre = geometry.incentre(size);
-                final buttonSize = math.min(60.0, width * 0.16);
+                final buttonSize = math.min(64.0, width * 0.17);
                 return Stack(
                   clipBehavior: Clip.none,
                   children: <Widget>[
@@ -697,17 +717,17 @@ class _CornerPlate extends StatelessWidget {
                       child: _RadialButton(open: open, size: buttonSize),
                     ),
                     Positioned(
-                      left: centre.dx - size.width * 0.32,
+                      left: centre.dx - size.width * 0.34,
                       top: centre.dy + buttonSize / 2 + 2,
-                      width: size.width * 0.64,
-                      height: 20,
+                      width: size.width * 0.68,
+                      height: 22,
                       child: FittedBox(
                         fit: BoxFit.scaleDown,
                         child: Text(
                           open ? 'مینو بند کریں' : 'Radial menu',
                           textDirection: TextDirection.rtl,
                           style: const TextStyle(
-                            fontSize: 11.5,
+                            fontSize: 14,
                             fontWeight: FontWeight.w700,
                             color: Color(0xFFFFE3D6),
                           ),

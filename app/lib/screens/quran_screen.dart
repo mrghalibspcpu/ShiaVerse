@@ -37,14 +37,6 @@ class QuranHomeScreen extends StatefulWidget {
 }
 
 class _QuranHomeScreenState extends State<QuranHomeScreen> {
-  final TextEditingController _jumpController = TextEditingController();
-
-  @override
-  void dispose() {
-    _jumpController.dispose();
-    super.dispose();
-  }
-
   Future<void> _openMushaf() async {
     try {
       final surahs = await widget.library.getSurahs();
@@ -70,20 +62,6 @@ class _QuranHomeScreenState extends State<QuranHomeScreen> {
     }
   }
 
-  Future<void> _openPage() async {
-    final page = parseReaderNumber(_jumpController.text);
-    if (page == null || page < 1 || page > 604) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('صفحہ نمبر ۱ سے ۶۰۴ کے درمیان لکھیں۔')),
-      );
-      return;
-    }
-    if (!mounted) return;
-    await Navigator.of(context).push(MaterialPageRoute(
-      builder: (_) => QuranPageReaderScreen(library: widget.library, page: page),
-    ));
-  }
-
   @override
   Widget build(BuildContext context) {
     return DefaultTabController(
@@ -95,17 +73,15 @@ class _QuranHomeScreenState extends State<QuranHomeScreen> {
             tabs: [Tab(text: 'سورتیں'), Tab(text: 'پارے')],
           ),
           actions: [
+            // One way to jump is enough: «سورہ / آیت پر جائیں». The separate
+            // go-to-mushaf-page field that used to sit here (and above the
+            // surah list) was removed in 1.28 at readers' request; the page
+            // reader itself remains for روزانہ مطالعہ's daily portion.
             TextButton.icon(
               onPressed: () => showQuranJump(context, widget.library),
               style: TextButton.styleFrom(padding: const EdgeInsets.symmetric(horizontal: 4)),
               icon: const Icon(Icons.my_location, size: 17),
               label: const Text('جائیں', style: TextStyle(fontSize: 13)),
-            ),
-            TextButton.icon(
-              onPressed: _openPage,
-              style: TextButton.styleFrom(padding: const EdgeInsets.symmetric(horizontal: 4)),
-              icon: const Icon(Icons.menu_book_outlined, size: 17),
-              label: const Text('صفحہ', style: TextStyle(fontSize: 13)),
             ),
             const SizedBox(width: 4),
           ],
@@ -130,20 +106,6 @@ class _QuranHomeScreenState extends State<QuranHomeScreen> {
                 onPressed: _openMushaf,
                 icon: const Icon(Icons.auto_stories_rounded, size: 19),
                 label: const Text('مصحف موڈ — صرف عربی متن'),
-              ),
-            ),
-            Padding(
-              padding: const EdgeInsets.fromLTRB(16, 6, 16, 4),
-              child: TextField(
-                controller: _jumpController,
-                keyboardType: TextInputType.number,
-                textDirection: TextDirection.rtl,
-                textAlign: TextAlign.right,
-                onSubmitted: (_) => _openPage(),
-                decoration: const InputDecoration(
-                  hintText: 'صفحہ نمبر لکھیں (۱ تا ۶۰۴)',
-                  prefixIcon: Icon(Icons.photo_size_select_small),
-                ),
               ),
             ),
             Expanded(

@@ -136,7 +136,8 @@ EXTRA_DATABASES: tuple[DatabaseSpec, ...] = (
                 "categories": {"category_id", "category_title_ur"}},
         indexes=("CREATE INDEX IF NOT EXISTS shia_fatwa_category ON question_answers(category_id)",),
         record_label="مسئلہ") for key, title, latin in (
-            ("khamenei", "فتاویٰ — آیت اللہ خامنہ ای", "Khamenei Urdu Fatawa"),
+            # 1.28: the Khamenei Urdu fatawa edition was removed from the
+            # corpus at the owner's request; the two marjas below remain.
             ("sistani", "فتاویٰ — آیت اللہ سیستانی", "Sistani Urdu Fatawa"),
             # 1.24: the marja's own 8,104 Urdu question/answer pairs, rebuilt
             # from the Drive archive by scripts/build_najafi_fatawa_db.py into

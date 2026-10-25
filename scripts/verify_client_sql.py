@@ -434,7 +434,6 @@ def build_index(paths: dict[str, Path]) -> sqlite3.Connection:
         "mafatih": "SELECT m.rowid AS record_id, m.M_name AS section_title",
         "nahjul_balagha": "WHERE x.Type BETWEEN 1 AND 3\n          ORDER BY record_id",
         "sahifa": "SELECT d.ID AS record_id, d.t_id * 10000",
-        "khamenei": "SELECT q.rowid AS record_id, q.category_id AS section_id",
         "sistani": "SELECT q.rowid AS record_id, q.category_id AS section_id",
         "athna_ashari_encyclopedia": "FROM sections AS s JOIN articles AS a ON a.id = s.article_id\n          ORDER BY s.article_id, s.ordinal",
     }
@@ -443,7 +442,7 @@ def build_index(paths: dict[str, Path]) -> sqlite3.Connection:
         query = extract_query(fragment)
         connection = sqlite3.connect(f"file:{paths[source_key]}?mode=ro", uri=True)
         try:
-            if source_key in {"sahifa", "khamenei", "sistani"}:
+            if source_key in {"sahifa", "sistani"}:
                 query = f"SELECT * FROM ({query}) ORDER BY record_id LIMIT ? OFFSET ?"
             cursor = connection.execute(query, (100000, 0))
             columns = [description[0] for description in cursor.description]
@@ -506,7 +505,6 @@ def run_checks(paths: dict[str, Path]) -> None:
         ("mafatih", dua),
         ("nahjul_balagha", balagha),
         ("sahifa", sahifa),
-        ("khamenei", fatwa("khamenei")),
         ("sistani", fatwa("sistani")),
         ("athna_ashari_encyclopedia", encyclopedia),
     ):

@@ -57,20 +57,32 @@ const int kQuranPages = 604;
 /// section of Nahj al-Balagha, say — so the plan carries the first book in
 /// [track] and the rest in [extraTracks]. Every book is split over the same
 /// number of days, so one day means one portion of each of them.
+///
+/// Since 1.28 the plan can also walk ANY installed library book on its own —
+/// an hadith collection, Mafatih al-Jinan, Sahifa Sajjadiyya, the fatawa,
+/// the encyclopaedia — named by book key in [bookKeys]. Those books are
+/// split by their sections (ابواب / دعائیں / مضامین), which is why they do
+/// not fit the fixed [StudyTrack] list. A plan made only of such books has
+/// no [track] at all.
 class StudyPlan {
   const StudyPlan({
-    required this.track,
+    this.track,
     required this.days,
     required this.startedOn,
     this.completedDays = const <int>{},
     this.extraTracks = const <StudyTrack>[],
+    this.bookKeys = const <String>[],
   });
 
-  /// The book the plan starts with.
-  final StudyTrack track;
+  /// The classic track the plan starts with, when it has one.
+  final StudyTrack? track;
 
-  /// The other books of the same plan, read in the same days.
+  /// The other classic tracks of the same plan, read in the same days.
   final List<StudyTrack> extraTracks;
+
+  /// Library books (by `BookDefinition.key`) walked section by section
+  /// alongside — or instead of — the classic tracks.
+  final List<String> bookKeys;
 
   /// How many days the whole book should take.
   final int days;
@@ -83,17 +95,21 @@ class StudyPlan {
   /// Plan-day numbers the reader marked as finished (1-based).
   final Set<int> completedDays;
 
-  /// Every book this plan walks through, the first one first.
-  List<StudyTrack> get tracks => <StudyTrack>[track, ...extraTracks];
+  /// Every classic track this plan walks through, the first one first.
+  List<StudyTrack> get tracks => <StudyTrack>[if (track != null) track!, ...extraTracks];
+
+  /// How many books the plan walks in all (classic tracks + library books).
+  int get selectionCount => tracks.length + bookKeys.length;
 
   /// True when the reader aimed at more than one book at a time.
-  bool get isMultiBook => extraTracks.isNotEmpty;
+  bool get isMultiBook => selectionCount > 1;
 
   StudyPlan copyWith({
     int? days,
     String? startedOn,
     Set<int>? completedDays,
     List<StudyTrack>? extraTracks,
+    List<String>? bookKeys,
   }) =>
       StudyPlan(
         track: track,
@@ -101,6 +117,7 @@ class StudyPlan {
         startedOn: startedOn ?? this.startedOn,
         completedDays: completedDays ?? this.completedDays,
         extraTracks: extraTracks ?? this.extraTracks,
+        bookKeys: bookKeys ?? this.bookKeys,
       );
 
   /// A day is finished, or un-finished again on a second tap.
@@ -111,8 +128,9 @@ class StudyPlan {
   }
 
   Map<String, Object?> toJson() => <String, Object?>{
-        'track': track.name,
+        'track': track?.name,
         'extraTracks': <String>[for (final value in extraTracks) value.name],
+        'bookKeys': bookKeys,
         'days': days,
         'startedOn': startedOn,
         'completedDays': (completedDays.toList()..sort()),
@@ -121,14 +139,13 @@ class StudyPlan {
   static StudyPlan? fromJson(Object? raw) {
     if (raw is! Map) return null;
     final trackName = raw['track'];
-    StudyTrack? found;
+    StudyTrack? track;
     for (final value in StudyTrack.values) {
-      if (value.name == trackName) found = value;
+      if (value.name == trackName) track = value;
     }
     final days = raw['days'];
     final startedOn = raw['startedOn'];
-    if (found == null || days is! int || days <= 0 || startedOn is! String) return null;
-    final track = found;
+    if (days is! int || days <= 0 || startedOn is! String) return null;
     final completed = <int>{
       for (final day in (raw['completedDays'] as List<Object?>? ?? const <Object?>[]))
         if (day is int && day > 0) day,
@@ -143,12 +160,23 @@ class StudyPlan {
         }
       }
     }
+    // Library books named by key. Whether a key still names a book is the
+    // screen's business (this file stays free of the catalogue), so any
+    // plain non-empty string is kept here and checked when it is measured.
+    final keys = <String>[];
+    for (final value in (raw['bookKeys'] as List<Object?>? ?? const <Object?>[])) {
+      final key = value.toString().trim();
+      if (key.isNotEmpty && !keys.contains(key)) keys.add(key);
+    }
+    // A plan needs at least one book, classic or library.
+    if (track == null && extra.isEmpty && keys.isEmpty) return null;
     return StudyPlan(
       track: track,
       days: days,
       startedOn: startedOn,
       completedDays: completed,
       extraTracks: extra,
+      bookKeys: keys,
     );
   }
 }

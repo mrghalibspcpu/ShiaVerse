@@ -1,7 +1,8 @@
 <?xml version="1.0" encoding="utf-8"?>
 <!-- The widget keeps the size it always had when it is added (three cells
      wide, two tall) but may now be resized down to a single row of text: the
-     provider cuts a compact plate for a short cell. -->
+     provider cuts a compact plate for a short cell and re-cuts it the moment
+     the size changes. The line itself rolls once an hour. -->
 <appwidget-provider xmlns:android="http://schemas.android.com/apk/res/android"
     android:minWidth="250dp"
     android:minHeight="145dp"
@@ -9,7 +10,7 @@
     android:targetCellHeight="2"
     android:minResizeWidth="110dp"
     android:minResizeHeight="70dp"
-    android:updatePeriodMillis="1800000"
+    android:updatePeriodMillis="3600000"
     android:initialLayout="@layout/moment_widget"
     android:resizeMode="horizontal|vertical"
     android:widgetCategory="home_screen"

@@ -93,6 +93,19 @@ class DataInstaller {
     return file.existsSync() && file.lengthSync() > 0;
   }
 
+  /// True when the file on disk is an older edition of [package]: it exists,
+  /// but its size is not the size the catalog now publishes. Reading a whole
+  /// book just to compare hashes would be slow, and a replaced edition (the
+  /// 1.28 Sahifa Sajjadiyya, say) never keeps the old byte count — so the
+  /// size is the cheap, reliable "this copy is stale" signal. The data
+  /// screen offers such books as updates instead of pretending they are
+  /// current forever.
+  bool isOutdated(DataPackage package) {
+    if (package.sizeBytes <= 0) return false;
+    final file = fileFor(package);
+    return file.existsSync() && file.lengthSync() != package.sizeBytes;
+  }
+
   /// Total size of the databases already on disk, in bytes.
   int installedBytes() {
     if (!directory.existsSync()) return 0;
@@ -103,8 +116,9 @@ class DataInstaller {
     return total;
   }
 
-  List<DataPackage> get missingPackages =>
-      _catalog.packages.where((package) => !isInstalled(package)).toList();
+  List<DataPackage> get missingPackages => _catalog.packages
+      .where((package) => !isInstalled(package) || isOutdated(package))
+      .toList();
 
   /// Loads the manifest from the APK first, then refreshes it from the network
   /// so newly published books appear without an app update.
@@ -167,6 +181,13 @@ class DataInstaller {
     void Function(DataProgress progress)? onProgress,
   }) async {
     await directory.create(recursive: true);
+    // An update replaces an older edition of the same file. A half-finished
+    // download of that older edition must not be resumed into the new one:
+    // the bytes would never verify, and the reader would retry forever.
+    if (isOutdated(package)) {
+      final partial = File('${directory.path}/${package.fileName}.part');
+      if (partial.existsSync()) partial.deleteSync();
+    }
     try {
       final compressed = await _download(package, onProgress: onProgress);
       onProgress?.call(DataProgress(
@@ -199,7 +220,7 @@ class DataInstaller {
     final done = <String>[];
     for (final package in packages) {
       if (_cancelled) break;
-      if (isInstalled(package)) {
+      if (isInstalled(package) && !isOutdated(package)) {
         done.add(package.key);
         continue;
       }

@@ -7,6 +7,10 @@ import android.content.ComponentName
 import android.content.Context
 import android.content.Intent
 import android.database.sqlite.SQLiteDatabase
+import android.os.Build
+import android.os.Bundle
+import android.util.SizeF
+import android.util.TypedValue
 import android.view.View
 import android.widget.RemoteViews
 import org.json.JSONArray
@@ -30,6 +34,20 @@ class MomentWidgetProvider : AppWidgetProvider() {
         ids.forEach { updateOne(context, manager, it, hourly = true) }
     }
 
+    /** The reader dragged the widget to a new size: re-cut the plate for the
+     * new cell at once, instead of leaving the old layout squeezed (and its
+     * text cut) until the next scheduled update. The hour's line itself is
+     * kept — a resize must never change what the widget says. */
+    override fun onAppWidgetOptionsChanged(
+        context: Context,
+        manager: AppWidgetManager,
+        id: Int,
+        newOptions: Bundle,
+    ) {
+        super.onAppWidgetOptionsChanged(context, manager, id, newOptions)
+        updateOne(context, manager, id, hourly = true)
+    }
+
     override fun onReceive(context: Context, intent: Intent) {
         super.onReceive(context, intent)
         if (intent.action != ACTION_REFRESH) return
@@ -43,21 +61,35 @@ class MomentWidgetProvider : AppWidgetProvider() {
         val minHeight = options.getInt(AppWidgetManager.OPTION_APPWIDGET_MIN_HEIGHT, 0)
         val minWidth = options.getInt(AppWidgetManager.OPTION_APPWIDGET_MIN_WIDTH, 0)
         val compact = (minHeight in 1 until 110) || (minHeight == 0 && minWidth in 1 until 180)
-        val views = RemoteViews(
-            context.packageName,
-            if (compact) R.layout.moment_widget_small else R.layout.moment_widget,
-        )
+
         val moments = loadMoments(context)
         val seed = if (hourly) System.currentTimeMillis() / HOUR_MS + id * 31L else System.nanoTime()
         val prefs = context.getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE)
         val key = "quote_$id"
+        val seedKey = "seed_$id"
         val previous = prefs.getInt(key, -1)
-        var selected = Random(seed.toInt()).nextInt(moments.size)
-        if (selected == previous) selected = (selected + 1) % moments.size
-        prefs.edit().putInt(key, selected).apply()
-        val quote = moments[selected]
-        views.setTextViewText(R.id.moment_text, quote.text)
-        views.setTextViewText(R.id.moment_reference, quote.reference)
+        // Within one hour the line is stable — resize callbacks and the
+        // platform's own re-deliveries re-use the stored text instead of
+        // rolling again (the moments list itself comes back in random order
+        // from SQLite, so an index alone would not be stable).
+        var quote: Moment? = null
+        if (hourly && prefs.getLong(seedKey, Long.MIN_VALUE) == seed) {
+            val stored = prefs.getString("text_$id", null)
+            if (!stored.isNullOrBlank()) {
+                quote = Moment(stored, prefs.getString("ref_$id", "") ?: "")
+            }
+        }
+        if (quote == null) {
+            var selected = Random(seed.toInt()).nextInt(moments.size)
+            if (selected == previous) selected = (selected + 1) % moments.size
+            quote = moments[selected]
+            prefs.edit()
+                .putInt(key, selected)
+                .putLong(seedKey, seed)
+                .putString("text_$id", quote.text)
+                .putString("ref_$id", quote.reference)
+                .apply()
+        }
 
         // The next prayer and the Hijri date, as the app itself calculates
         // them. The widget reads them from the app's own preferences, so the
@@ -65,6 +97,48 @@ class MomentWidgetProvider : AppWidgetProvider() {
         val shared = context.getSharedPreferences(FLUTTER_PREFS, Context.MODE_PRIVATE)
         val nextPrayer = shared.getString("$FLUTTER_PREFIX$KEY_NEXT_PRAYER", null)
         val hijri = shared.getString("$FLUTTER_PREFIX$KEY_HIJRI", null)
+        val line: Moment = quote ?: moments.first()
+
+        // Android 12 and later can hold several plates and switch between
+        // them by itself the moment the widget is resized — the surest way
+        // for the content to adjust instead of being cut. Older launchers
+        // take the single plate for the current cell and rely on
+        // onAppWidgetOptionsChanged above.
+        val views = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) {
+            RemoteViews(
+                mapOf(
+                    SizeF(110f, 70f) to buildViews(context, true, id, line, nextPrayer, hijri),
+                    SizeF(180f, 110f) to buildViews(context, false, id, line, nextPrayer, hijri),
+                )
+            )
+        } else {
+            buildViews(context, compact, id, line, nextPrayer, hijri)
+        }
+        manager.updateAppWidget(id, views)
+    }
+
+    /** One filled plate. A short line is set large, a long one smaller —
+     * still comfortably readable — so the words fit the cell instead of
+     * being clipped at a fixed size. */
+    private fun buildViews(
+        context: Context,
+        compact: Boolean,
+        id: Int,
+        quote: Moment,
+        nextPrayer: String?,
+        hijri: String?,
+    ): RemoteViews {
+        val views = RemoteViews(
+            context.packageName,
+            if (compact) R.layout.moment_widget_small else R.layout.moment_widget,
+        )
+        views.setTextViewText(R.id.moment_text, quote.text)
+        views.setTextViewTextSize(
+            R.id.moment_text,
+            TypedValue.COMPLEX_UNIT_SP,
+            textSizeSp(quote.text, compact),
+        )
+        views.setTextViewText(R.id.moment_reference, quote.reference)
         views.setTextViewText(R.id.moment_next_prayer, nextPrayer ?: "")
         views.setTextViewText(R.id.moment_hijri, hijri ?: "")
         views.setViewVisibility(
@@ -86,7 +160,30 @@ class MomentWidgetProvider : AppWidgetProvider() {
             R.id.moment_root,
             PendingIntent.getActivity(context, id + 1000, openIntent, PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE)
         )
-        manager.updateAppWidget(id, views)
+        return views
+    }
+
+    /** Type size for the line itself: the shorter the ayat/hadith, the
+     * larger it may stand; a long one steps down a size at a time and never
+     * below a readable 11.5sp. */
+    private fun textSizeSp(text: String, compact: Boolean): Float {
+        val length = text.length
+        return if (compact) {
+            when {
+                length <= 45 -> 16f
+                length <= 90 -> 14f
+                length <= 150 -> 12.5f
+                else -> 11.5f
+            }
+        } else {
+            when {
+                length <= 45 -> 20f
+                length <= 90 -> 17f
+                length <= 150 -> 15f
+                length <= 210 -> 13.5f
+                else -> 12.5f
+            }
+        }
     }
 
     private data class Moment(val text: String, val reference: String)

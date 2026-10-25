@@ -34,6 +34,18 @@ class _DataScreenState extends State<DataScreen> {
   DataCatalog _catalog = DataCatalog.empty;
   final Map<String, DataProgress> _progress = {};
   Set<String> _installed = const {};
+
+  /// Installed books whose file is an older edition than the catalog now
+  /// publishes (the replaced Sahifa Sajjadiyya of 1.28, say). They stay
+  /// readable until updated, but the tile offers the new edition instead of
+  /// a plain tick, and both the single-download and download-all paths treat
+  /// them as work to do.
+  Set<String> _outdated = const {};
+
+  /// Keys being replaced (rather than freshly installed) by the download in
+  /// flight, so [_afterInstall] can ask the library to re-read the new file
+  /// and re-index it.
+  final Set<String> _pendingUpdates = <String>{};
   bool _loading = true;
   bool _working = false;
   String? _error;
@@ -50,11 +62,23 @@ class _DataScreenState extends State<DataScreen> {
       _error = null;
     });
     try {
-      final catalog = await widget.installer.loadCatalog();
+      final fetched = await widget.installer.loadCatalog();
       if (!mounted) return;
+      // The remote catalog can still name a book this app no longer carries
+      // (a removed edition lives on in an older published manifest). Such a
+      // package could never be read — there is no book definition for it —
+      // so it is not offered for download either.
+      final catalog = DataCatalog(
+        packages: fetched.packages
+            .where((package) => BookDefinition.byKey(package.key) != null)
+            .toList(),
+        baseUrls: fetched.baseUrls,
+        extension: fetched.extension,
+      );
       setState(() {
         _catalog = catalog;
         _installed = _installedKeys();
+        _outdated = _outdatedKeys();
         _loading = false;
       });
     } catch (error) {
@@ -71,23 +95,39 @@ class _DataScreenState extends State<DataScreen> {
           if (widget.installer.isInstalled(package)) package.key,
       };
 
+  Set<String> _outdatedKeys() => {
+        for (final package in _catalogOrEmpty().packages)
+          if (widget.installer.isOutdated(package)) package.key,
+      };
+
   DataCatalog _catalogOrEmpty() => _catalog.isEmpty ? widget.installer.catalog : _catalog;
 
   Future<void> _installOne(DataPackage package) async {
     if (_working) return;
+    final updating = widget.installer.isOutdated(package);
+    if (updating) _pendingUpdates.add(package.key);
     setState(() {
       _working = true;
       _error = null;
     });
     try {
       await widget.installer.install(package, onProgress: _onProgress);
-      await widget.library.refreshAfterInstall();
+      if (updating) {
+        await widget.library.refreshAfterUpdate(package.key);
+      } else {
+        await widget.library.refreshAfterInstall();
+      }
       if (!mounted) return;
       setState(() {
         _installed = _installedKeys();
+        _outdated = _outdatedKeys();
         _progress.remove(package.key);
       });
-      _showMessage('${package.titleUrdu} نصب ہو گیا۔');
+      _showMessage(
+        updating
+            ? '${package.titleUrdu} کا نیا ایڈیشن نصب ہو گیا۔'
+            : '${package.titleUrdu} نصب ہو گیا۔',
+      );
     } catch (error) {
       if (!mounted) return;
       setState(() {
@@ -95,15 +135,21 @@ class _DataScreenState extends State<DataScreen> {
         _progress.remove(package.key);
       });
     } finally {
+      _pendingUpdates.remove(package.key);
       if (mounted) setState(() => _working = false);
     }
   }
 
   Future<void> _installMissing() async {
     if (_working) return;
-    final missing = _catalogOrEmpty().packages
-        .where((package) => !widget.installer.isInstalled(package))
+    final missing = _catalogOrEmpty()
+        .packages
+        .where((package) =>
+            !widget.installer.isInstalled(package) || widget.installer.isOutdated(package))
         .toList();
+    _pendingUpdates
+      ..clear()
+      ..addAll(missing.where(widget.installer.isOutdated).map((package) => package.key));
     if (missing.isEmpty) {
       _showMessage('تمام کتب پہلے سے نصب ہیں۔');
       return;
@@ -122,6 +168,7 @@ class _DataScreenState extends State<DataScreen> {
       if (!mounted) return;
       setState(() {
         _installed = _installedKeys();
+        _outdated = _outdatedKeys();
         _progress.clear();
       });
       _showMessage('ڈاؤن لوڈ مکمل ہو گیا۔');
@@ -134,10 +181,15 @@ class _DataScreenState extends State<DataScreen> {
   }
 
   Future<void> _afterInstall(DataPackage package) async {
-    await widget.library.refreshAfterInstall();
+    if (_pendingUpdates.remove(package.key)) {
+      await widget.library.refreshAfterUpdate(package.key);
+    } else {
+      await widget.library.refreshAfterInstall();
+    }
     if (!mounted) return;
     setState(() {
       _installed = _installedKeys();
+      _outdated = _outdatedKeys();
       _progress.remove(package.key);
     });
   }
@@ -154,8 +206,10 @@ class _DataScreenState extends State<DataScreen> {
   @override
   Widget build(BuildContext context) {
     final catalog = _catalogOrEmpty();
+    // A stale edition counts as work still to download, so the summary and
+    // the download-all button notice it.
     final missingBytes = catalog.packages
-        .where((package) => !_installed.contains(package.key))
+        .where((package) => !_installed.contains(package.key) || _outdated.contains(package.key))
         .fold<int>(0, (sum, package) => sum + package.sizeBytes);
     final installedBytes =
         catalog.packages.where((package) => _installed.contains(package.key)).length;
@@ -217,6 +271,7 @@ class _DataScreenState extends State<DataScreen> {
                     _PackageTile(
                       package: package,
                       installed: _installed.contains(package.key),
+                      outdated: _outdated.contains(package.key),
                       progress: _progress[package.key],
                       busy: _working,
                       onDownload: () => _installOne(package),
@@ -328,11 +383,16 @@ class _PackageTile extends StatelessWidget {
     required this.installed,
     required this.busy,
     required this.onDownload,
+    this.outdated = false,
     this.progress,
   });
 
   final DataPackage package;
   final bool installed;
+
+  /// The copy on disk is an older edition than the catalog's: offer the new
+  /// one instead of a plain tick.
+  final bool outdated;
   final bool busy;
   final VoidCallback onDownload;
   final DataProgress? progress;
@@ -362,7 +422,13 @@ class _PackageTile extends StatelessWidget {
                   style: TextStyle(fontSize: 12, color: Theme.of(context).colorScheme.onSurfaceVariant),
                 ),
                 const SizedBox(width: 6),
-                if (installed)
+                if (installed && outdated)
+                  IconButton(
+                    tooltip: 'نیا ایڈیشن دستیاب ہے — ڈاؤن لوڈ کریں',
+                    onPressed: busy ? null : onDownload,
+                    icon: const Icon(Icons.system_update_alt, color: Color(0xFFB8860B)),
+                  )
+                else if (installed)
                   const Icon(Icons.check_circle, color: kForest, size: 20)
                 else
                   IconButton(
@@ -372,6 +438,14 @@ class _PackageTile extends StatelessWidget {
                   ),
               ],
             ),
+            if (installed && outdated) ...[
+              const SizedBox(height: 4),
+              const Text(
+                'نیا ایڈیشن دستیاب ہے',
+                textDirection: TextDirection.rtl,
+                style: TextStyle(fontSize: 12, color: Color(0xFFB8860B), fontWeight: FontWeight.w600),
+              ),
+            ],
             if (progressValue != null) ...[
               const SizedBox(height: 8),
               ClipRRect(

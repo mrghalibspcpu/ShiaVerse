@@ -39,10 +39,26 @@ const List<Color> kBookPalette = <Color>[
   Color(0xFFC0CA33), // yellow-green
 ];
 
+/// Book keys in the order the library first shipped them. Colours are picked
+/// from this frozen order rather than from `BookDefinition.all`, so removing
+/// a book (the Khamenei fatawa in 1.28, whose slot stays here on purpose)
+/// never recolours the books that remain.
+const List<String> _kBookAccentOrder = <String>[
+  'sahifa', 'khamenei', 'sistani', 'najafi', 'tahzeeb', 'alkafi', 'alkhisal',
+  'hakam', 'hidaya', 'hikmatprophet', 'imam', 'kamaledeen', 'maniakbar',
+  'manlahyahzur', 'mezan', 'swab', 'towheed', 'wasail', 'quran', 'mafatih',
+  'nahjul_balagha', 'athna_ashari_encyclopedia',
+];
+
 /// The icon colour of [book]: its position in the library, so neighbours in
 /// the grid never share a colour.
 Color bookAccent(BookDefinition book) {
-  final index = BookDefinition.all.indexWhere((item) => item.key == book.key);
+  var index = _kBookAccentOrder.indexOf(book.key);
+  if (index < 0) {
+    // A book added after the order froze keeps the old rule: its place in
+    // the live list.
+    index = BookDefinition.all.indexWhere((item) => item.key == book.key);
+  }
   return kBookPalette[(index < 0 ? 0 : index) % kBookPalette.length];
 }
 
