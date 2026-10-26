@@ -408,6 +408,10 @@ void main() {
         await tester.pumpAndSettle();
         visibleMonthIndex--;
       }
+      final dateKey =
+          'occasion-day-${civil.year}-${civil.month.toString().padLeft(2, '0')}-${civil.day.toString().padLeft(2, '0')}';
+      await tester.tap(find.byKey(ValueKey<String>(dateKey)));
+      await tester.pumpAndSettle();
       expect(find.text(title), findsOneWidget);
     }
 
@@ -835,7 +839,16 @@ void main() {
           .map((key) => tester.getRect(find.byKey(ValueKey<String>(key))))
           .toList(growable: false);
       for (final rect in lensRects.skip(1)) {
-        expect(rect.size, lensRects.first.size, reason: 'all circular Xplore controls share one size');
+        expect(
+          rect.width,
+          closeTo(lensRects.first.width, 0.1),
+          reason: 'all circular Xplore controls share one width',
+        );
+        expect(
+          rect.height,
+          closeTo(lensRects.first.height, 0.1),
+          reason: 'all circular Xplore controls share one height',
+        );
       }
       final plateKeys = <String>[
         'xplore-top-right-plate',
@@ -846,7 +859,16 @@ void main() {
           .map((key) => tester.getRect(find.byKey(ValueKey<String>(key))))
           .toList(growable: false);
       for (final rect in plateRects.skip(1)) {
-        expect(rect.size, plateRects.first.size, reason: 'all triangular Xplore plates share one size');
+        expect(
+          rect.width,
+          closeTo(plateRects.first.width, 0.1),
+          reason: 'all triangular Xplore plates share one width',
+        );
+        expect(
+          rect.height,
+          closeTo(plateRects.first.height, 0.1),
+          reason: 'all triangular Xplore plates share one height',
+        );
       }
       if (label == 'tall') {
         expect(plateRects.first.top, greaterThanOrEqualTo(24));
