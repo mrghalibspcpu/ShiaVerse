@@ -490,9 +490,6 @@ class _Calendar3DViewState extends State<_Calendar3DView> {
     super.dispose();
   }
 
-  bool _sameDay(DateTime first, DateTime second) =>
-      first.year == second.year && first.month == second.month && first.day == second.day;
-
   bool _sameMonth(DateTime first, DateTime second) =>
       first.year == second.year && first.month == second.month;
 
@@ -605,7 +602,12 @@ class _Calendar3DViewState extends State<_Calendar3DView> {
                   final transform = Matrix4.identity()
                     ..setEntry(3, 2, 0.0015)
                     ..rotateY(-distance * 0.15)
-                    ..scale(1.0 - distance.abs() * 0.045);
+                    ..scaleByDouble(
+                      1.0 - distance.abs() * 0.045,
+                      1.0 - distance.abs() * 0.045,
+                      1.0 - distance.abs() * 0.045,
+                      1.0,
+                    );
                   return Transform(
                     alignment: distance < 0 ? Alignment.centerRight : Alignment.centerLeft,
                     transform: transform,
