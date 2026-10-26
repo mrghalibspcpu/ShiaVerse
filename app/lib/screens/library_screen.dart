@@ -580,6 +580,8 @@ class ReaderScreen extends StatefulWidget {
     this.sectionId,
     this.sectionTitle,
     this.searchQuery = '',
+    this.studyFirstSectionId,
+    this.studyLastSectionId,
   });
 
   final LibraryRepository library;
@@ -588,6 +590,11 @@ class ReaderScreen extends StatefulWidget {
   final int? sectionId;
   final String? sectionTitle;
   final String searchQuery;
+
+  /// Optional bounds used by Daily Study so next/previous stays in today's
+  /// assigned section run. Ordinary library readers leave both null.
+  final int? studyFirstSectionId;
+  final int? studyLastSectionId;
 
   @override
   State<ReaderScreen> createState() => _ReaderScreenState();
@@ -632,12 +639,27 @@ class _ReaderScreenState extends State<ReaderScreen> with ReaderDisplayMode<Read
     return _navSections.indexWhere((s) => s.$1 == current);
   }
 
+  int get _studyFirstIndex {
+    final id = widget.studyFirstSectionId;
+    if (id == null) return 0;
+    final index = _navSections.indexWhere((section) => section.$1 == id);
+    return index < 0 ? 0 : index;
+  }
+
+  int get _studyLastIndex {
+    final id = widget.studyLastSectionId;
+    if (id == null) return _navSections.length - 1;
+    final index = _navSections.indexWhere((section) => section.$1 == id);
+    return index < 0 ? _navSections.length - 1 : index;
+  }
+
   /// Opens the next/previous متن (section) — crossing chapter boundaries —
   /// replacing this reader so the back button still returns to the lists.
   void _openAdjacentSection(int delta) {
     final index = _navIndex;
     if (_navBusy || index < 0) return;
     final targetIndex = index + delta;
+    if (targetIndex < _studyFirstIndex || targetIndex > _studyLastIndex) return;
     if (targetIndex < 0 || targetIndex >= _navSections.length) return;
     _navBusy = true;
     final (secId, title) = _navSections[targetIndex];
@@ -647,6 +669,8 @@ class _ReaderScreenState extends State<ReaderScreen> with ReaderDisplayMode<Read
         book: widget.book,
         sectionId: secId,
         sectionTitle: title.isEmpty ? widget.book.titleUrdu : title,
+        studyFirstSectionId: widget.studyFirstSectionId,
+        studyLastSectionId: widget.studyLastSectionId,
       ),
     ));
   }
@@ -788,13 +812,13 @@ class _ReaderScreenState extends State<ReaderScreen> with ReaderDisplayMode<Read
                               if (hasSectionNav)
                                 ReaderPrevNextBar(
                                   key: const ValueKey<String>('reader-section-prev-next'),
-                                  hasPrevious: navIndex > 0,
-                                  hasNext: navIndex < _navSections.length - 1,
+                                  hasPrevious: navIndex > _studyFirstIndex,
+                                  hasNext: navIndex < _studyLastIndex,
                                   onPrevious: () => _openAdjacentSection(-1),
                                   onNext: () => _openAdjacentSection(1),
                                   previousLabel: 'پچھلا متن',
                                   nextLabel: 'اگلا متن',
-                                  label: 'متن ${navIndex + 1} از ${_navSections.length}',
+                                  label: 'متن ${navIndex - _studyFirstIndex + 1} از ${_studyLastIndex - _studyFirstIndex + 1}',
                                 ),
                             ],
                           );

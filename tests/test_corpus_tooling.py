@@ -1,6 +1,7 @@
 """Unit tests for the corpus packaging tools (no Flutter or network needed)."""
 from __future__ import annotations
 
+import hashlib
 import json
 import sys
 import unittest
@@ -101,6 +102,7 @@ class ManifestTests(unittest.TestCase):
         self.assertEqual(totals["quran_surahs"], 114)
         self.assertEqual(totals["dua_items"], 677)
         self.assertEqual(totals["balagha_paragraphs"], 3742)
+        self.assertEqual(totals["sahifa_rows"], 2103)
 
     def test_asset_names_match_what_the_app_requests(self):
         """`<name>` + `<extension>` must equal the file publish_databases.py writes."""
@@ -117,6 +119,8 @@ class ManifestTests(unittest.TestCase):
     def test_download_settings_are_absolute_https_urls(self):
         download = self.manifest["download"]
         self.assertEqual(download["extension"], ".gz")
+        self.assertIn("/databases-v2/", download["base_urls"][0])
+        self.assertIn("/databases-v1/", download["base_urls"][1])
         for url in download["base_urls"]:
             with self.subTest(url):
                 self.assertTrue(url.startswith("https://"))
@@ -129,6 +133,16 @@ class ManifestTests(unittest.TestCase):
             json.loads(bundled.read_text(encoding="utf-8")),
             self.manifest,
         )
+
+    def test_replacement_books_are_bundled_with_manifest_hashes(self):
+        app_assets = ROOT / "app" / "assets" / "databases"
+        by_name = {entry["name"]: entry for entry in self.manifest["databases"]}
+        for name in ("mafatihdb-v4.db", "Sahifa_Sajjadiyya_full_runtime.sqlite3"):
+            with self.subTest(name):
+                path = app_assets / name
+                self.assertTrue(path.is_file(), f"{name} must be bundled for offline migration")
+                digest = hashlib.sha256(path.read_bytes()).hexdigest()
+                self.assertEqual(digest, by_name[name]["sha256"])
 
 
 class ValidationTests(unittest.TestCase):

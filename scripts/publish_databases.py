@@ -4,7 +4,7 @@
 The APK does not need to carry ~230 MiB of SQLite files. This script writes one
 gzip-compressed file per database plus the manifest into ``dist/``; upload them
 to a GitHub Release and the client fetches them from
-``https://github.com/<owner>/<repo>/releases/download/databases-v1/<file>``:
+``https://github.com/<owner>/<repo>/releases/download/databases-v2/<file>``:
 
 The tag is pinned in the manifest and the client on purpose: pointing at
 ``releases/latest`` would break every installed app the day an APK release
@@ -12,8 +12,8 @@ is published. Re-run this script and re-upload with ``--clobber`` to update
 the corpus in place.
 
     python3 scripts/publish_databases.py
-    gh release create databases-v1 dist/*.gz dist/database-manifest.json \\
-        --title "Corpus v1" --notes "SQLite collections for the Shia library app"
+    gh release create databases-v2 dist/*.gz dist/database-manifest.json \\
+        --title "Corpus v2" --notes "SQLite collections for the Shia library app"
 
 Every download is verified against the SHA-256 recorded in the manifest, so a
 corrupted or tampered file is rejected before the app opens it.
@@ -91,9 +91,9 @@ def main() -> int:
     )
     print(
         "\nUpload them with:\n"
-        f"  gh release create databases-v1 {args.output}/*.gz "
+        f"  gh release create databases-v2 {args.output}/*.gz "
         f"{args.output}/database-manifest.json \\\n"
-        '      --title "Corpus v1" --notes "SQLite collections for the Shia library app"'
+        '      --title "Corpus v2" --notes "SQLite collections for the Shia library app"'
     )
     return 0
 

@@ -45,9 +45,20 @@ The reader now shows only `t_id IN (1, 2, 3, 4)`:
 | 4 | مناجات خمسہ عشر | 15 |
 | | **Total** | **83** |
 
-Row data is untouched — only the query narrows, so 4,318 of the 4,993 rows are
-read and indexed. `_countIndexableRows` counts through the same filtered query,
-which is what keeps `_indexBook`'s "wrote every row" assertion honest.
+At the time of this release, row data was untouched — only the query narrowed,
+so 4,318 of the original 4,993 rows were read and indexed. `_countIndexableRows`
+counts through the same filtered query, which keeps `_indexBook`'s "wrote every
+row" assertion honest.
+
+### Data refresh in 1.29
+
+The bundled `Sahifa_Sajjadiyya_full_runtime.sqlite3` is now the replacement
+from Google Drive's **NEW ALTERNATIVE DATA** folder. It contains 2,103 Arabic
+and Urdu text rows across the same 83 indexed supplications; the existing
+`t_id IN (1, 2, 3, 4)` reader filter remains in place. Mafatih al-Jinan is also
+replaced with the matching Drive edition (677 entries and 5,378 lines). Existing
+installations atomically replace these read-only databases on first launch of
+the update, then rebuild the search index.
 
 ## 4. Two kinds of last-seen, and a home screen that opens at once
 

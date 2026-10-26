@@ -11,6 +11,11 @@ change.
 - Khamenei Urdu Fatawa: all 428 supplied question/answer records.
 - Sistani Urdu Fatawa: all 1,619 supplied question/answer records.
 
+**Data refresh in ShiaVerse 1.29:** the Sahifa file was replaced with the newer
+Drive edition (2,103 Arabic/Urdu rows across 83 reader supplications). The
+historical counts above describe the original 1.4 snapshot only; the current
+manifest and `README.md` list the refreshed data.
+
 Fatawa entries retain the supplied source URL and reference. These files are
 snapshots; searching every supplied record does not imply that they contain
 all rulings published by either authority.

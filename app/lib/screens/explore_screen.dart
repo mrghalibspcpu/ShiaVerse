@@ -5,16 +5,11 @@ import 'package:flutter/material.dart';
 import '../widgets/more_features.dart';
 import '../widgets/reading_hub.dart';
 
-/// Full-screen Xplore dashboard.
+/// Xplore dashboard with safe-area edge plates and a diagonal row of lenses.
 ///
-/// The page is the camera-lens plate of the reference artwork, in portrait:
-/// five amber lenses on a brushed-metal body, and three red plates cut into
-/// the edges of that body — the brand wedge in the top-right corner, the
-/// pointing wedge on the left edge, and the corner wedge in the bottom-right
-/// that carries the radial-menu button. Lens one sits top-left, lens two
-/// steps down towards the middle, three reaches the right edge, four comes
-/// back to the centre, five closes at the bottom-left — the same diagonal
-/// climb as the artwork, so the controls read as a machine and not as a grid.
+/// Every circular control shares one diameter; all three triangular plates
+/// share one size and stay below the phone's status bar and above its gesture
+/// area when the device is drawn edge-to-edge.
 class ExploreScreen extends StatefulWidget {
   const ExploreScreen({
     super.key,
@@ -96,23 +91,21 @@ class _ExploreScreenState extends State<ExploreScreen> with RouteAware {
         final width = constraints.maxWidth;
         final height = constraints.maxHeight;
         final padding = MediaQuery.paddingOf(context);
-        // Lenses stay inside the safe area so a status bar never covers a
-        // control. The three red plates are aligned to the SCREEN, not to that
-        // inset: the left wedge's base is the left edge and its midpoint is
-        // the screen's vertical centre; the top-right and bottom-right plates
-        // are the same size and sit flush in their corners.
+        // All four edge plates and all five lenses are measured inside the
+        // safe bounds. This keeps the Xplore wordmark under the status bar and
+        // the menu wedge clear of the bottom gesture/navigation area.
         final safeLeft = padding.left;
         final safeTop = padding.top;
         final safeWidth = math.max(1.0, width - padding.left - padding.right);
         final safeHeight = math.max(1.0, height - padding.top - padding.bottom);
-        final lens = math.min(safeWidth * 0.40, safeHeight * 0.20);
-        final brand = _PlateGeometry.brand(width, height);
-        final wedge = _PlateGeometry.wedge(width, height);
-        final corner = _PlateGeometry.corner(width, height);
+        final lens = math.min(safeWidth * 0.38, safeHeight * 0.18);
+        final brand = _PlateGeometry.brand(safeWidth, safeHeight);
+        final wedge = _PlateGeometry.wedge(safeWidth, safeHeight);
+        final corner = _PlateGeometry.corner(safeWidth, safeHeight);
         final buttonCentre = corner.incentre(corner.size);
         final anchor = Offset(
-          width - corner.width + buttonCentre.dx,
-          height - corner.height + buttonCentre.dy,
+          safeLeft + safeWidth - corner.width + buttonCentre.dx,
+          safeTop + safeHeight - corner.height + buttonCentre.dy,
         );
 
         Widget at(Offset centre, double diameter, Widget child) => Positioned(
@@ -130,33 +123,34 @@ class _ExploreScreenState extends State<ExploreScreen> with RouteAware {
             const _MachineBody(),
             Positioned(
               key: const ValueKey<String>('xplore-top-right-plate'),
-              right: 0,
-              top: 0,
+              left: safeLeft + safeWidth - brand.width,
+              top: safeTop,
               width: brand.width,
               height: brand.height,
               child: _BrandPlate(geometry: brand),
             ),
             Positioned(
               key: const ValueKey<String>('xplore-left-plate'),
-              left: 0,
-              top: (height - wedge.height) / 2,
+              left: safeLeft,
+              top: safeTop + (safeHeight - wedge.height) / 2,
               width: wedge.width,
               height: wedge.height,
               child: _WedgePlate(geometry: wedge, feature: encyclopedia),
             ),
             Positioned(
               key: const ValueKey<String>('xplore-bottom-right-plate'),
-              right: 0,
-              bottom: 0,
+              left: safeLeft + safeWidth - corner.width,
+              top: safeTop + safeHeight - corner.height,
               width: corner.width,
               height: corner.height,
               child: _CornerPlate(
                 geometry: corner,
                 open: _menuOpen,
                 onTap: _toggleMenu,
-                width: width,
+                width: safeWidth,
               ),
             ),
+
             Positioned(
               left: safeLeft,
               top: safeTop,
@@ -170,6 +164,7 @@ class _ExploreScreenState extends State<ExploreScreen> with RouteAware {
                     Offset(safeWidth * 0.20, safeHeight * 0.155),
                     lens,
                     _LensControl(
+                      key: const ValueKey<String>('xplore-lens-tasbeeh'),
                       title: 'تسبیح',
                       subtitle: 'تسبیح و ذکر',
                       icon: Icons.fingerprint_rounded,
@@ -179,8 +174,9 @@ class _ExploreScreenState extends State<ExploreScreen> with RouteAware {
                   ),
                   at(
                     Offset(safeWidth * 0.505, safeHeight * 0.335),
-                    lens * 1.08,
+                    lens,
                     _LensControl(
+                      key: const ValueKey<String>('xplore-lens-prayer'),
                       title: 'نماز',
                       subtitle: 'اوقات و قرات',
                       icon: Icons.access_time_filled_rounded,
@@ -190,8 +186,9 @@ class _ExploreScreenState extends State<ExploreScreen> with RouteAware {
                   ),
                   at(
                     Offset(safeWidth * 0.795, safeHeight * 0.505),
-                    lens * 0.94,
+                    lens,
                     _LensControl(
+                      key: const ValueKey<String>('xplore-lens-crescent'),
                       title: 'چاند کی رویت',
                       subtitle: 'رویتِ ہلال',
                       icon: Icons.nightlight_round,
@@ -203,6 +200,7 @@ class _ExploreScreenState extends State<ExploreScreen> with RouteAware {
                     Offset(safeWidth * 0.515, safeHeight * 0.675),
                     lens,
                     _LensControl(
+                      key: const ValueKey<String>('xplore-lens-calendar'),
                       title: 'اسلامی تقویم',
                       subtitle: 'ہجری تاریخیں',
                       icon: Icons.calendar_month_rounded,
@@ -212,8 +210,9 @@ class _ExploreScreenState extends State<ExploreScreen> with RouteAware {
                   ),
                   at(
                     Offset(safeWidth * 0.215, safeHeight * 0.838),
-                    lens * 0.88,
+                    lens,
                     _LensControl(
+                      key: const ValueKey<String>('xplore-lens-xtra'),
                       title: 'Xplore Xtra',
                       subtitle: 'روزانہ مطالعہ',
                       icon: Icons.auto_awesome_rounded,
@@ -289,36 +288,28 @@ class _PlateGeometry {
     required this.vertices,
   });
 
-  /// The brand wedge in the top-right corner. Same width and height as
-  /// [corner], so the two right-hand plates line up with each other and with
-  /// the screen's right edge.
+  /// All edge plates are cut from equal-size boxes and aligned to the safe
+  /// bounds; only the triangle's orientation changes.
   factory _PlateGeometry.brand(double width, double height) => _PlateGeometry(
-        width: width * _cornerWidth,
-        height: height * _cornerHeight,
+        width: width * _triangleWidth,
+        height: height * _triangleHeight,
         vertices: const <Offset>[Offset(0, 0), Offset(1, 0), Offset(1, 1)],
       );
 
-  /// The wedge on the left edge: its base is the edge of the body itself and
-  /// its point reaches into the plate. The caller centres this box on the
-  /// screen's vertical midline, so the base's midpoint is the centre of the
-  /// left edge.
   factory _PlateGeometry.wedge(double width, double height) => _PlateGeometry(
-        width: width * 0.40,
-        height: height * 0.36,
+        width: width * _triangleWidth,
+        height: height * _triangleHeight,
         vertices: const <Offset>[Offset(0, 0), Offset(0, 1), Offset(1, 0.5)],
       );
 
-  /// The corner wedge in the bottom right. Same size as [brand], flush with
-  /// the screen's bottom and right edges.
   factory _PlateGeometry.corner(double width, double height) => _PlateGeometry(
-        width: width * _cornerWidth,
-        height: height * _cornerHeight,
+        width: width * _triangleWidth,
+        height: height * _triangleHeight,
         vertices: const <Offset>[Offset(1, 0), Offset(1, 1), Offset(0, 1)],
       );
 
-  /// Shared by the two right-hand plates so they stay equal as the phone changes.
-  static const double _cornerWidth = 0.50;
-  static const double _cornerHeight = 0.22;
+  static const double _triangleWidth = 0.44;
+  static const double _triangleHeight = 0.24;
 
   final double width;
   final double height;
@@ -514,8 +505,8 @@ class _BrandPlate extends StatelessWidget {
           final centre = geometry.incentre(size);
           // The wordmark lies along the hypotenuse, at the angle of the plate.
           final angle = math.atan2(size.height, size.width);
-          final blockWidth = size.width * 0.44;
-          const blockHeight = 42.0;
+          final blockWidth = size.width * 0.52;
+          const blockHeight = 48.0;
           return Stack(
             clipBehavior: Clip.none,
             children: <Widget>[
@@ -535,7 +526,7 @@ class _BrandPlate extends StatelessWidget {
                           'Xplore',
                           style: TextStyle(
                             fontFamily: 'sans-serif',
-                            fontSize: 21,
+                            fontSize: 23,
                             height: 1.05,
                             fontWeight: FontWeight.w800,
                             letterSpacing: .8,
@@ -547,7 +538,7 @@ class _BrandPlate extends StatelessWidget {
                           'by ShiaVerse',
                           style: TextStyle(
                             fontFamily: 'sans-serif',
-                            fontSize: 10.5,
+                            fontSize: 11.5,
                             letterSpacing: 1.1,
                             color: Color(0xCCFFFFFF),
                           ),
@@ -592,8 +583,8 @@ class _WedgePlate extends StatelessWidget {
               builder: (context, constraints) {
                 final size = Size(constraints.maxWidth, constraints.maxHeight);
                 final centre = geometry.incentre(size);
-                const iconSize = 38.0;
-                final labelWidth = size.width * 0.62;
+                const iconSize = 44.0;
+                final labelWidth = size.width * 0.70;
                 return Stack(
                   clipBehavior: Clip.none,
                   children: <Widget>[
@@ -611,10 +602,10 @@ class _WedgePlate extends StatelessWidget {
                       ),
                     ),
                     Positioned(
-                      left: centre.dx - labelWidth / 2,
-                      top: size.height * 0.485,
+                      left: size.width * 0.11,
+                      top: size.height * 0.52,
                       width: labelWidth,
-                      height: 32,
+                      height: 40,
                       child: const FittedBox(
                         fit: BoxFit.scaleDown,
                         child: Column(
@@ -623,7 +614,7 @@ class _WedgePlate extends StatelessWidget {
                             Text(
                               'انسائکلوپیڈیا',
                               style: TextStyle(
-                                fontSize: 13,
+                                fontSize: 15,
                                 height: 1.2,
                                 fontWeight: FontWeight.w800,
                                 color: Colors.white,
@@ -632,7 +623,7 @@ class _WedgePlate extends StatelessWidget {
                             Text(
                               'بارہ ائمہ • عقائد',
                               style: TextStyle(
-                                fontSize: 9.5,
+                                fontSize: 11.5,
                                 height: 1.3,
                                 color: Color(0xFFFFD9C9),
                               ),
@@ -685,7 +676,11 @@ class _CornerPlate extends StatelessWidget {
               builder: (context, constraints) {
                 final size = Size(constraints.maxWidth, constraints.maxHeight);
                 final centre = geometry.incentre(size);
-                final buttonSize = math.min(60.0, width * 0.16);
+                final buttonSize = math.min(70.0, width * 0.19);
+                final labelHeight = 22.0;
+                final labelTop = (centre.dy + buttonSize / 2 + 1)
+                    .clamp(0.0, size.height - labelHeight)
+                    .toDouble();
                 return Stack(
                   clipBehavior: Clip.none,
                   children: <Widget>[
@@ -697,17 +692,17 @@ class _CornerPlate extends StatelessWidget {
                       child: _RadialButton(open: open, size: buttonSize),
                     ),
                     Positioned(
-                      left: centre.dx - size.width * 0.32,
-                      top: centre.dy + buttonSize / 2 + 2,
-                      width: size.width * 0.64,
-                      height: 20,
+                      left: size.width * 0.34,
+                      top: labelTop,
+                      width: size.width * 0.62,
+                      height: labelHeight,
                       child: FittedBox(
                         fit: BoxFit.scaleDown,
                         child: Text(
                           open ? 'مینو بند کریں' : 'Radial menu',
                           textDirection: TextDirection.rtl,
                           style: const TextStyle(
-                            fontSize: 11.5,
+                            fontSize: 13.5,
                             fontWeight: FontWeight.w700,
                             color: Color(0xFFFFE3D6),
                           ),
@@ -729,6 +724,7 @@ class _CornerPlate extends StatelessWidget {
 /// destination engraved on a dark disc at the centre.
 class _LensControl extends StatelessWidget {
   const _LensControl({
+    super.key,
     required this.title,
     required this.subtitle,
     required this.icon,

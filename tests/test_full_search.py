@@ -1,4 +1,4 @@
-"""Replay every page of the actual Dart index queries against ALL 20 books."""
+"""Replay every page of the actual Dart index queries against all 22 books."""
 import sqlite3
 import sys
 import unittest
@@ -63,7 +63,9 @@ class FullSearchCoverageTests(unittest.TestCase):
                             {'khamenei': 428, 'sistani': 1619, 'najafi': 8104}[spec.key],
                         )
                     elif spec.source == 'sahifa':
-                        self.assertEqual(len(seen), 4318)
+                        # The refreshed Drive edition contains just the 83
+                        # reader sections, with Arabic and Urdu rows.
+                        self.assertEqual(len(seen), 2103)
                         self.assertEqual(
                             db.execute("SELECT COUNT(DISTINCT t_id * 10000 + t_no) FROM saheefa_data "
                                        "WHERE t_id IN (1, 2, 3, 4)").fetchone()[0],
@@ -72,7 +74,7 @@ class FullSearchCoverageTests(unittest.TestCase):
                         self.assertEqual(
                             {r[0] for r in db.execute(
                                 'SELECT DISTINCT oe FROM saheefa_data WHERE t_id IN (1, 2, 3, 4)')},
-                            {'a', 'u', 'v', 'f'},
+                            {'a', 'u'},
                         )
 
     def test_all_6236_verses_and_last_juz_are_available_to_paginated_search(self):
@@ -100,3 +102,8 @@ class FullSearchCoverageTests(unittest.TestCase):
         self.assertIn('initialScrollIndex: _initialIndex', quran)
         self.assertIn('focusMatch: verse.recordId == widget.initialRecordId', quran)
         self.assertIn('parseReaderNumber(controller.text)', quran)
+        self.assertIn('showQuranJump(context, widget.library)', quran)
+        self.assertNotIn('void _openPage()', quran)
+        self.assertNotIn('onPressed: _openPage,', quran)
+        self.assertNotIn('_jumpController', quran)
+        self.assertNotIn('صفحہ نمبر لکھیں', quran)

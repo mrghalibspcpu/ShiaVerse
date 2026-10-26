@@ -7,6 +7,10 @@ app/assets/databases/*.sqlite
 app/assets/databases/*.sqlite3
 assets/databases/*.sqlite
 assets/databases/*.sqlite3
+# Hash-pinned replacements bundled in 1.29 so existing installs migrate
+# Mafatih and Sahifa before opening the readers.
+!app/assets/databases/mafatihdb-v4.db
+!app/assets/databases/Sahifa_Sajjadiyya_full_runtime.sqlite3
 app/assets/databases/*.db-shm
 app/assets/databases/*.db-wal
 

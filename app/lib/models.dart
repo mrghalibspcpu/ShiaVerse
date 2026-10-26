@@ -32,9 +32,14 @@ const String kFatawaCollectionTitle = 'دینی مسائل (احکام و فتا
 const String kFatawaCollectionSubtitle = 'فتاویٰ، احکامِ شرعیہ اور سوال و جواب';
 const String kFatawaCollectionHint = 'اپنا مرجعِ تقلید منتخب کریں';
 
-/// Every fatwa book, in marja order (Khamenei, Sistani, then Najafi).
-List<BookDefinition> get fatawaBooks =>
-    BookDefinition.all.where((book) => book.source == CorpusSource.fatwa).toList();
+/// The marjas offered in the **دینی مسائل** picker (Sistani, then Najafi).
+///
+/// Khamenei's database remains in [BookDefinition.all] so existing installs,
+/// bookmarks, search results, and saved links continue to resolve; it is no
+/// longer offered as a selectable book in this collection.
+List<BookDefinition> get fatawaBooks => BookDefinition.all
+    .where((book) => book.source == CorpusSource.fatwa && book.key != 'khamenei')
+    .toList();
 
 /// Mafatih al-Jinan and Sahifa Sajjadiyya are offered as ONE library entry
 /// too: the reader opens the dua collection and picks the book there, the

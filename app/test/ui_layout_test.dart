@@ -373,23 +373,47 @@ void main() {
     await settle(tester);
     expect(find.text('اس سال کے ایام'), findsOneWidget);
     expect(find.text('3 جمادی الاول 1448ھ — G-11، اسلام آباد'), findsOneWidget);
-    // The converter now sits above the occasion list, so move the list to
-    // each expected row before checking it: 3 Jumada al-Thani, a month off.
     final calendarList = find.byType(ListView).first;
-    Future<void> reveal(String title) async {
-      // Keep the Finder non-unique while the lazy list has not built the row;
-      // a `.first` Finder would throw before the first scroll brings it in.
-      final target = find.text(title);
-      for (var attempt = 0; attempt < 40 && target.evaluate().isEmpty; attempt++) {
-        await tester.drag(calendarList, const Offset(0, -320));
-        await tester.pump(const Duration(milliseconds: 100));
+    for (var attempt = 0;
+        attempt < 12 && find.byKey(const ValueKey<String>('islamic-occasion-calendar')).evaluate().isEmpty;
+        attempt++) {
+      await tester.drag(calendarList, const Offset(0, -320));
+      await tester.pumpAndSettle();
+    }
+    expect(find.byKey(const ValueKey<String>('islamic-occasion-calendar')), findsOneWidget);
+    expect(find.byKey(const ValueKey<String>('occasion-calendar-pages')), findsOneWidget);
+    await tester.ensureVisible(find.byKey(const ValueKey<String>('occasion-calendar-next')));
+    await tester.pumpAndSettle();
+
+    final hijriYear = prayer.hijriToday.date.year;
+    // The screen uses the reader's manual Hijri adjustment, or zero when it
+    // is set to automatic, when it maps occasions onto the civil calendar.
+    final adjustment = prayer.hijriAdjustment ?? 0;
+    var visibleMonthIndex = 0;
+    final baseMonth = DateTime.utc(2026, 10);
+    Future<void> revealOccasion(int year, int month, int day, String title) async {
+      final civil = prayer.lunarHijri
+          .civilStartOfMonth(year, month)
+          .add(Duration(days: day - 1 - adjustment));
+      final targetMonthIndex = (civil.year - baseMonth.year) * 12 + civil.month - baseMonth.month;
+      expect(targetMonthIndex, greaterThanOrEqualTo(0));
+      expect(targetMonthIndex, lessThanOrEqualTo(12));
+      while (visibleMonthIndex < targetMonthIndex) {
+        await tester.tap(find.byKey(const ValueKey<String>('occasion-calendar-next')));
+        await tester.pumpAndSettle();
+        visibleMonthIndex++;
       }
-      expect(target, findsOneWidget);
+      while (visibleMonthIndex > targetMonthIndex) {
+        await tester.tap(find.byKey(const ValueKey<String>('occasion-calendar-previous')));
+        await tester.pumpAndSettle();
+        visibleMonthIndex--;
+      }
+      expect(find.text(title), findsOneWidget);
     }
 
-    await reveal('شہادتِ حضرت فاطمہ زہرا س');
-    await reveal('یومِ عاشورہ');
-    await reveal('عیدِ غدیر');
+    await revealOccasion(hijriYear, 6, 3, 'شہادتِ حضرت فاطمہ زہرا س');
+    await revealOccasion(hijriYear + 1, 1, 10, 'یومِ عاشورہ');
+    await revealOccasion(hijriYear, 12, 18, 'عیدِ غدیر');
     expect(tester.takeException(), isNull);
     expect(find.byType(SectionBackground), findsOneWidget);
     expectWallpaperInsidePanels(tester);
@@ -782,6 +806,9 @@ void main() {
   for (final (label, height) in <(String, double)>[('tall', 800), ('short', 640)]) {
     testWidgets('the Xplore lens plate fits a 360 dp phone ($label)', (tester) async {
       phone(tester, height: height);
+      if (label == 'tall') {
+        tester.view.padding = const FakeViewPadding(top: 72, bottom: 60);
+      }
       final (prayer, tasbeeh) = await controllersAt(tester, localTime(19, 20));
       final opened = <String>[];
       final observer = RouteObserver<PageRoute<dynamic>>();
@@ -797,6 +824,34 @@ void main() {
       ));
       await settle(tester);
       expect(find.textContaining('Xplore'), findsWidgets);
+      final lensKeys = <String>[
+        'xplore-lens-tasbeeh',
+        'xplore-lens-prayer',
+        'xplore-lens-crescent',
+        'xplore-lens-calendar',
+        'xplore-lens-xtra',
+      ];
+      final lensRects = lensKeys
+          .map((key) => tester.getRect(find.byKey(ValueKey<String>(key))))
+          .toList(growable: false);
+      for (final rect in lensRects.skip(1)) {
+        expect(rect.size, lensRects.first.size, reason: 'all circular Xplore controls share one size');
+      }
+      final plateKeys = <String>[
+        'xplore-top-right-plate',
+        'xplore-left-plate',
+        'xplore-bottom-right-plate',
+      ];
+      final plateRects = plateKeys
+          .map((key) => tester.getRect(find.byKey(ValueKey<String>(key))))
+          .toList(growable: false);
+      for (final rect in plateRects.skip(1)) {
+        expect(rect.size, plateRects.first.size, reason: 'all triangular Xplore plates share one size');
+      }
+      if (label == 'tall') {
+        expect(plateRects.first.top, greaterThanOrEqualTo(24));
+        expect(plateRects.last.bottom, lessThanOrEqualTo(height - 20));
+      }
       // Nothing may overflow: an overflowing plate is a failed layout.
       expect(tester.takeException(), isNull);
       await shoot(tester, 'explore-1-24-$label');

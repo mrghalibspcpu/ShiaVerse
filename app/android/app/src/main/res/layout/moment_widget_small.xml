@@ -1,13 +1,13 @@
 <?xml version="1.0" encoding="utf-8"?>
-<!-- The compact plate: the same verse, in a cell too small for the reference
-     and the next prayer. It carries the same view ids as the full plate, so
-     the provider fills either of them without changing anything else. -->
+<!-- Compact, three-line quote layout for short cells. It keeps the source and
+     refresh control, while the next-prayer and Hijri chips move to the full
+     layout. The provider fills both layouts through the same view ids. -->
 <LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
     android:id="@+id/moment_root"
     android:layout_width="match_parent"
     android:layout_height="match_parent"
     android:orientation="vertical"
-    android:padding="10dp"
+    android:padding="6dp"
     android:background="@drawable/moment_widget_background">
 
     <LinearLayout
@@ -18,8 +18,8 @@
 
         <ImageView
             android:id="@+id/moment_lens"
-            android:layout_width="20dp"
-            android:layout_height="20dp"
+            android:layout_width="16dp"
+            android:layout_height="16dp"
             android:layout_marginEnd="6dp"
             android:contentDescription="آیت"
             android:src="@drawable/moment_widget_lens" />
@@ -37,11 +37,11 @@
 
         <ImageButton
             android:id="@+id/moment_refresh"
-            android:layout_width="30dp"
-            android:layout_height="30dp"
+            android:layout_width="24dp"
+            android:layout_height="24dp"
             android:background="@drawable/moment_widget_button"
             android:contentDescription="اگلا قول"
-            android:padding="7dp"
+            android:padding="5dp"
             android:src="@android:drawable/ic_popup_sync"
             android:tint="#FFE2AF" />
     </LinearLayout>
@@ -52,11 +52,12 @@
         android:layout_height="0dp"
         android:layout_weight="1"
         android:gravity="center_vertical"
-        android:lineSpacingExtra="2dp"
-        android:maxLines="2"
+        android:includeFontPadding="false"
+        android:lineSpacingExtra="1dp"
+        android:maxLines="3"
         android:textColor="#FFF9EF"
         android:textDirection="anyRtl"
-        android:textSize="14sp"
+        android:textSize="13sp"
         android:textStyle="bold" />
 
     <TextView

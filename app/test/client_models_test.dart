@@ -232,8 +232,10 @@ void main() {
     test('offers every marja behind one tile', () {
       expect(
         fatawaBooks.map((book) => book.key).toList(),
-        ['khamenei', 'sistani', 'najafi'],
+        ['sistani', 'najafi'],
       );
+      expect(BookDefinition.byKey('khamenei'), isNotNull,
+          reason: 'keep the catalog entry for compatibility, but omit it from the picker');
       for (final book in fatawaBooks) {
         expect(book.source, CorpusSource.fatwa);
         expect(book.marjaName, isNotEmpty);

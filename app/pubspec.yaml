@@ -1,10 +1,9 @@
 name: shiaverse
 publish_to: "none"
 description: Offline Shia library — Quran, Mafatih al-Jinan, Nahj al-Balagha, and 14 hadith books.
-# The number after + is Android versionCode. It must stay above 10038.
-# Split APKs of 1.26/1.27 used Flutter's ABI offset (arm64 was 2036), and a
-# lower code is rejected as "package appears to be invalid".
-version: 1.27.1+10038
+# The number after + is Android versionCode. It must stay above the previous
+# 1.28.0 release (10041) so this APK installs as an update without uninstalling.
+version: 1.29.0+10042
 
 environment:
   sdk: ">=3.4.0 <4.0.0"

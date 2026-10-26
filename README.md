@@ -1,6 +1,18 @@
 # ShiaVerse
 
-## New in 1.24 — the lens plate, a third marja, the notes in their place
+## Current release: 1.29.0+10042
+
+This update removes Khamenei from the **دینی مسائل** picker while keeping its
+catalog entry for compatibility; refreshes Mafatih and Sahifa from Drive with an
+offline-safe, atomic upgrade for installed copies; expands Daily Study to
+multiple library books; keeps Xplore controls within system safe areas; improves
+the resizable hourly home widget; removes Quran's page-jump field while
+preserving Surah/Ayah navigation; and presents **مناسبات** as an interactive
+3D monthly calendar. See
+[`docs/shiaverse-1-29-update.md`](docs/shiaverse-1-29-update.md) for data hashes,
+layout behavior, and migration details.
+
+## Historical update: 1.24 — the lens plate, a third marja, the notes in their place
 
 - **The three red plates of Xplore are triangles, as in the artwork.** The
   brand plate in the top-right corner, the pointing wedge on the left edge and
@@ -530,9 +542,9 @@ first-launch unpack.
 | Collection | File | Contents |
 |---|---|---|
 | Quran | `quran.db` | 6,236 verses, 114 surahs, Urdu translation (`tr`), tafseer notes (`talighe`), juz/page locators |
-| Mafatih al-Jinan | `mafatihdb-v4.db` | 677 catalogue entries and 5,378 text lines across 6 chapters |
+| Mafatih al-Jinan | `mafatihdb-v4.db` | Refreshed Drive edition: 677 catalogue entries and 5,378 text lines across 6 chapters (SHA-256 checked) |
 | Nahj al-Balagha | `nahjul_balagha.db` | 3,742 paragraphs, 810 entries, 2,352 footnotes, 504 introduction paragraphs |
-| Sahifa Sajjadiyya | `Sahifa_Sajjadiyya_full_runtime.sqlite3` | The book's 83 supplications (4,318 of the 4,993 supplied rows; the rest is site furniture) |
+| Sahifa Sajjadiyya | `Sahifa_Sajjadiyya_full_runtime.sqlite3` | Refreshed Drive edition: 83 supplications, 2,103 Arabic/Urdu text rows, 83 index entries |
 | Khamenei Urdu fatawa | `khamenei_urdu_fatawa.sqlite` | All 428 supplied question/answer records with source references |
 | Sistani Urdu fatawa | `sistani_urdu_fatawa.sqlite` | All 1,619 supplied question/answer records with source references |
 | 14 hadith books | `shia-databases.zip` | 96,513 records, 17,855 sections, 845 chapters |
@@ -557,25 +569,26 @@ downloads each database on demand:
 1. The bundled manifest (`app/assets/database-manifest.json`) lists every file,
    its size, and its SHA-256.
 2. The app fetches `<name>.db.gz` from GitHub — a build-pinned mirror first
-   (`--dart-define=SHIA_DATA_BASE_URL`), then the latest release, then the
-   repository itself.
+   (`--dart-define=SHIA_DATA_BASE_URL`), then the pinned `databases-v2`
+   release, the previous `databases-v1` release, and the repository fallback.
 3. Interrupted downloads resume with HTTP `Range` requests.
 4. The stream is gunzipped straight to disk while it is hashed; a file whose
    digest does not match the manifest is deleted, never opened.
 5. `LibraryRepository.refreshAfterInstall()` picks the new book up and appends it
    to the search index without rebuilding what is already there.
 
-Books can also be bundled at build time (see below); when a file is already in
-app storage the download is skipped, and when it is missing the library shows it
-as "not installed" with a download button instead of failing.
+Books can also be bundled at build time (see below). ShiaVerse 1.29 bundles
+Mafatih and Sahifa; their pinned hashes replace stale installed copies on first
+launch after the update. For other books, an existing local file is left alone,
+and a missing book stays available for download instead of failing the app.
 
 Publish the corpus once per change:
 
 ```sh
 python3 scripts/prepare_databases.py --write-manifest
 python3 scripts/publish_databases.py          # writes dist/*.db.gz (222 MiB -> ~53 MiB)
-gh release create databases-v1 dist/*.gz dist/database-manifest.json \
-    --title "Corpus v1" --notes "SQLite collections for the Shia library app"
+gh release create databases-v2 dist/*.gz dist/database-manifest.json \
+    --title "Corpus v2" --notes "SQLite collections for the Shia library app"
 ```
 
 ## Build and run the app

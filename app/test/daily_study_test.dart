@@ -68,6 +68,13 @@ void main() {
       expect(late.last, kQuranPages);
     });
 
+    test('a plan longer than a short book holds on its last available unit', () {
+      final laterDay = StudyPortion.forDay(day: 8, days: 30, totalUnits: 3, unitLabelUrdu: 'باب');
+      expect(laterDay.day, 8, reason: 'completion still belongs to plan day eight');
+      expect(laterDay.first, 3);
+      expect(laterDay.last, 3);
+    });
+
     test('an empty or zero-length book still yields a usable portion', () {
       final portion = StudyPortion.forDay(day: 1, days: 30, totalUnits: 0, unitLabelUrdu: 'نمبر');
       expect(portion.first, 1);
@@ -159,28 +166,37 @@ void main() {
   });
 
   group('more than one book at a time', () {
+    test('book-backed tracks map to their distinct library entries', () {
+      expect(StudyTrack.mafatih.bookKey, 'mafatih');
+      expect(StudyTrack.sahifa.bookKey, 'sahifa');
+      expect(StudyTrack.alkafi.bookKey, 'alkafi');
+      expect(StudyTrack.encyclopedia.bookKey, 'athna_ashari_encyclopedia');
+      expect(StudyTrack.values.map((track) => track.name), isNot(contains('khamenei')));
+    });
+
     test('a plan can carry several books, in order', () {
       const plan = StudyPlan(
         track: StudyTrack.quran,
-        extraTracks: <StudyTrack>[StudyTrack.balaghaSermons, StudyTrack.balaghaWisdom],
+        extraTracks: <StudyTrack>[StudyTrack.mafatih, StudyTrack.sahifa, StudyTrack.balaghaWisdom],
         days: 90,
         startedOn: '2026-10-20',
       );
       expect(plan.tracks, <StudyTrack>[
         StudyTrack.quran,
-        StudyTrack.balaghaSermons,
+        StudyTrack.mafatih,
+        StudyTrack.sahifa,
         StudyTrack.balaghaWisdom,
       ]);
       expect(plan.isMultiBook, isTrue);
       expect(plan.copyWith(days: 30).days, 30);
-      expect(plan.copyWith(days: 30).tracks.length, 3);
+      expect(plan.copyWith(days: 30).tracks.length, 4);
     });
 
     test('the extra books survive the round trip through SharedPreferences', () async {
       SharedPreferences.setMockInitialValues(<String, Object>{});
       final plan = StudyPlan(
         track: StudyTrack.quran,
-        extraTracks: <StudyTrack>[StudyTrack.balaghaLetters],
+        extraTracks: <StudyTrack>[StudyTrack.balaghaLetters, StudyTrack.mafatih, StudyTrack.sahifa],
         days: 30,
         startedOn: '2026-10-20',
         completedDays: <int>{1, 2},
@@ -189,7 +205,12 @@ void main() {
 
       final restored = await StudyPlanStore().load();
       expect(restored, isNotNull);
-      expect(restored!.tracks, <StudyTrack>[StudyTrack.quran, StudyTrack.balaghaLetters]);
+      expect(restored!.tracks, <StudyTrack>[
+        StudyTrack.quran,
+        StudyTrack.balaghaLetters,
+        StudyTrack.mafatih,
+        StudyTrack.sahifa,
+      ]);
       expect(restored.completedDays, <int>{1, 2});
       expect(restored.days, 30);
     });

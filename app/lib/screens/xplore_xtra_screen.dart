@@ -51,7 +51,7 @@ class XploreXtraScreen extends StatelessWidget {
                 _XtraCard(
                   icon: Icons.event_available_rounded,
                   title: 'روزانہ مطالعہ',
-                  subtitle: 'قرآن اور نہج البلاغہ کی ایک یا چند کتابیں ہیں ساتھ ہی: اپنا ہدف منتخب کریں، آج کا حصہ فوراً کھولیں اور اپنی پیش رفت و مسلسل دن محفوظ رکھیں۔ مکمل طور پر آف لائن۔',
+                  subtitle: 'قرآن، دعاؤں، نہج البلاغہ، احادیث اور دوسری نصب شدہ کتابوں میں سے ایک یا کئی چنیں؛ آج کا حصہ کھولیں اور اپنی پیش رفت و مسلسل دن محفوظ رکھیں۔ مکمل طور پر آف لائن۔',
                   accent: const Color(0xFF42A78B),
                   badge: 'ابھی دستیاب',
                   onTap: () => unawaited(Navigator.of(context).push(MaterialPageRoute<void>(builder: (_) => DailyStudyScreen(library: library)))),

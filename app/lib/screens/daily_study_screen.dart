@@ -8,16 +8,17 @@ import '../library_repository.dart';
 import '../models.dart';
 import '../text_utils.dart' show arabicNumerals;
 import 'balagha_screen.dart';
+import 'duas_screen.dart';
+import 'library_screen.dart';
 import 'quran_screen.dart';
 
 /// **روزانہ مطالعہ** — the Xplore feature that turns the library into a habit.
 ///
-/// A reader picks one book (the Quran, or one section of Nahj al-Balagha) —
-/// or several books at once — and a length in days; the screen works out
-/// today's portion of every one of them from the plan's start day, opens the
-/// reader at exactly that page/entry, and keeps the streak. Nothing is
-/// downloaded and nothing leaves the phone — the portion is pure arithmetic
-/// over the book's own length, so it keeps working offline forever.
+/// A reader picks one or several books from the library — Quran, dua, hadith,
+/// Nahj al-Balagha, fatawa, or the encyclopedia — and a length in days. The
+/// screen works out today's portion of every book, opens its existing reader,
+/// and keeps the streak. Nothing leaves the phone; each book uses its own
+/// installed sections, entries, or pages and the plan works offline.
 class DailyStudyScreen extends StatefulWidget {
   const DailyStudyScreen({super.key, required this.library});
 
@@ -33,9 +34,11 @@ class _DailyStudyScreenState extends State<DailyStudyScreen> {
   StudyPlan? _plan;
   bool _loading = true;
 
-  /// Entries of the chosen Nahj al-Balagha sections, used for the length and
-  /// for naming the entry a day opens on — one list per book of the plan.
+  /// Entries of the chosen Nahj al-Balagha divisions.
   final Map<StudyTrack, List<BalaghaEntry>> _entries = <StudyTrack, List<BalaghaEntry>>{};
+
+  /// Ordered sections/duas for all the other selected library books.
+  final Map<StudyTrack, List<StudyUnit>> _studyUnits = <StudyTrack, List<StudyUnit>>{};
   final Map<StudyTrack, int> _units = <StudyTrack, int>{};
   String? _dataMissing;
 
@@ -60,41 +63,50 @@ class _DailyStudyScreenState extends State<DailyStudyScreen> {
   Future<void> _measure(List<StudyTrack> tracks) async {
     final units = <StudyTrack, int>{};
     final entries = <StudyTrack, List<BalaghaEntry>>{};
+    final bookUnits = <StudyTrack, List<StudyUnit>>{};
     String? missing;
-    final quranInstalled =
-        widget.library.installedBooks.any((book) => book.source == CorpusSource.quran);
-    final balaghaInstalled =
-        widget.library.installedBooks.any((book) => book.source == CorpusSource.balagha);
     for (final track in tracks) {
+      final book = BookDefinition.byKey(track.bookKey);
+      if (book == null || !widget.library.isInstalled(book)) {
+        missing ??= '${track.titleUrdu} کا متن ابھی انسٹال نہیں — ڈیٹا سیکشن سے ڈاؤن لوڈ کریں۔';
+        continue;
+      }
       if (track.isQuran) {
-        if (!quranInstalled) {
-          missing ??= 'قرآنِ کریم کا متن ابھی انسٹال نہیں — ڈیٹا سیکشن سے ڈاؤن لوڈ کریں۔';
-          continue;
-        }
         units[track] = kQuranPages;
-        entries[track] = const <BalaghaEntry>[];
         continue;
       }
       final type = track.balaghaType;
-      if (type == null || !balaghaInstalled) {
-        missing ??= 'نہج البلاغہ ابھی انسٹال نہیں — ڈیٹا سیکشن سے ڈاؤن لوڈ کریں۔';
+      if (type != null) {
+        List<BalaghaEntry> list = const <BalaghaEntry>[];
+        try {
+          list = await widget.library.getBalaghaEntries(type);
+        } catch (_) {
+          list = const <BalaghaEntry>[];
+        }
+        entries[track] = list;
+        units[track] = list.length;
+        if (list.isEmpty) missing ??= '${track.titleUrdu} کا متن ابھی دستیاب نہیں۔';
         continue;
       }
-      List<BalaghaEntry> list = const <BalaghaEntry>[];
+
+      List<StudyUnit> list = const <StudyUnit>[];
       try {
-        list = await widget.library.getBalaghaEntries(type);
+        list = await widget.library.getStudyUnits(book);
       } catch (_) {
-        list = const <BalaghaEntry>[];
+        list = const <StudyUnit>[];
       }
-      entries[track] = list;
+      bookUnits[track] = list;
       units[track] = list.length;
-      if (list.isEmpty) missing ??= 'اس حصے کا متن ابھی دستیاب نہیں۔';
+      if (list.isEmpty) missing ??= '${track.titleUrdu} کا متن ابھی دستیاب نہیں۔';
     }
     if (!mounted) return;
     setState(() {
       _entries
         ..clear()
         ..addAll(entries);
+      _studyUnits
+        ..clear()
+        ..addAll(bookUnits);
       _units
         ..clear()
         ..addAll(units);
@@ -115,6 +127,7 @@ class _DailyStudyScreenState extends State<DailyStudyScreen> {
     setState(() {
       _plan = plan;
       _entries.clear();
+      _studyUnits.clear();
       _units.clear();
       _dataMissing = null;
     });
@@ -149,13 +162,15 @@ class _DailyStudyScreenState extends State<DailyStudyScreen> {
     setState(() {
       _plan = null;
       _entries.clear();
+      _studyUnits.clear();
       _units.clear();
       _dataMissing = null;
     });
   }
 
-  /// Opens one book of the plan at today's portion of it: the whole run of
-  /// pages or entries, not only its first one.
+  /// Opens one book at today's portion. Each reader keeps its own normal
+  /// section navigation; Mafatih additionally receives the exact dua run so
+  /// its next/previous controls stay inside the day's assignment.
   Future<void> _openPortion(StudyTrack track, StudyPortion portion) async {
     if (track.isQuran) {
       await Navigator.of(context).push(MaterialPageRoute<void>(
@@ -168,24 +183,61 @@ class _DailyStudyScreenState extends State<DailyStudyScreen> {
       return;
     }
     final type = track.balaghaType;
-    if (type == null) return;
-    String? title;
-    for (final entry in _entries[track] ?? const <BalaghaEntry>[]) {
-      if (entry.typeNo == portion.first) {
-        title = entry.title;
-        break;
+    if (type != null) {
+      String? title;
+      for (final entry in _entries[track] ?? const <BalaghaEntry>[]) {
+        if (entry.typeNo == portion.first) {
+          title = entry.title;
+          break;
+        }
       }
+      final label = portion.first == portion.last
+          ? (title ?? '${track.titleUrdu} ${arabicNumerals(portion.first)}')
+          : '${track.titleUrdu} ${arabicNumerals(portion.first)} تا ${arabicNumerals(portion.last)}';
+      await Navigator.of(context).push(MaterialPageRoute<void>(
+        builder: (_) => BalaghaReaderScreen(
+          library: widget.library,
+          type: type,
+          typeNo: portion.first,
+          lastTypeNo: portion.last,
+          title: label,
+        ),
+      ));
+      return;
     }
-    final label = portion.first == portion.last
-        ? (title ?? '${track.titleUrdu} ${arabicNumerals(portion.first)}')
-        : '${track.titleUrdu} ${arabicNumerals(portion.first)} تا ${arabicNumerals(portion.last)}';
+
+    final units = _studyUnits[track] ?? const <StudyUnit>[];
+    if (units.isEmpty) return;
+    final firstIndex = (portion.first - 1).clamp(0, units.length - 1).toInt();
+    final lastIndex = (portion.last - 1).clamp(firstIndex, units.length - 1).toInt();
+    final run = units.sublist(firstIndex, lastIndex + 1);
+    if (track.isMafatih) {
+      final duas = <DuaItem>[
+        for (final unit in run)
+          if (unit.duaItem != null) unit.duaItem!,
+      ];
+      if (duas.isEmpty) return;
+      await Navigator.of(context).push(MaterialPageRoute<void>(
+        builder: (_) => DuaReaderScreen(
+          library: widget.library,
+          item: duas.first,
+          studyItems: duas,
+        ),
+      ));
+      return;
+    }
+
+    final book = BookDefinition.byKey(track.bookKey);
+    if (book == null) return;
+    final firstUnit = run.first;
     await Navigator.of(context).push(MaterialPageRoute<void>(
-      builder: (_) => BalaghaReaderScreen(
+      builder: (_) => ReaderScreen(
         library: widget.library,
-        type: type,
-        typeNo: portion.first,
-        lastTypeNo: portion.last,
-        title: label,
+        book: book,
+        sectionId: firstUnit.id,
+        sectionTitle: firstUnit.title,
+        studyFirstSectionId: firstUnit.id,
+        studyLastSectionId: run.last.id,
       ),
     ));
   }
@@ -267,6 +319,10 @@ class _DailyStudyScreenState extends State<DailyStudyScreen> {
     final finished = today > plan.days || (done >= plan.days);
     final day = portions.first.$2.day;
     return <Widget>[
+      if (_dataMissing != null) ...<Widget>[
+        _Notice(_dataMissing!),
+        const SizedBox(height: 12),
+      ],
       for (final (track, portion) in portions) ...<Widget>[
         _TodayCard(
           track: track,

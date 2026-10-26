@@ -33,9 +33,6 @@ class IslamicCalendarScreen extends StatelessWidget {
           civil: _civilFor(calendar, event, today, civilToday, adjustDays: adjustment),
         ),
     ]..sort((a, b) => a.civil.compareTo(b.civil));
-    final next = rows.indexWhere((row) => !row.civil.isBefore(civilToday));
-    final nextDate = next < 0 ? null : rows[next].civil;
-
     return SectionBackground(
       asset: 'assets/images/wall_calendar.jpg',
       dim: 0.5,
@@ -92,16 +89,14 @@ class IslamicCalendarScreen extends StatelessWidget {
                 ),
               ),
               const SizedBox(height: 12),
-              for (final row in rows)
-                Padding(
-                  padding: const EdgeInsets.only(bottom: 8),
-                  child: _OccasionCard(
-                    row: row,
-                    upcoming: nextDate != null && row.civil == nextDate,
-                    palette: palette,
-                    days: row.civil.difference(civilToday).inDays,
-                  ),
-                ),
+              _Calendar3DView(
+                rows: rows,
+                today: civilToday,
+                calendar: calendar,
+                adjustment: adjustment,
+                palette: palette,
+              ),
+              const SizedBox(height: 10),
               GlassPanel(
                 radius: 20,
                 padding: const EdgeInsets.all(13),
@@ -449,108 +444,577 @@ class _OccasionRow {
   final DateTime civil;
 }
 
-class _OccasionCard extends StatelessWidget {
-  const _OccasionCard({
-    required this.row,
-    required this.upcoming,
+class _Calendar3DView extends StatefulWidget {
+  const _Calendar3DView({
+    required this.rows,
+    required this.today,
+    required this.calendar,
+    required this.adjustment,
     required this.palette,
-    required this.days,
   });
 
-  final _OccasionRow row;
-  final bool upcoming;
+  final List<_OccasionRow> rows;
+  final DateTime today;
+  final LunarHijri calendar;
+  final int adjustment;
   final GlassPalette palette;
-  final int days;
+
+  @override
+  State<_Calendar3DView> createState() => _Calendar3DViewState();
+}
+
+class _Calendar3DViewState extends State<_Calendar3DView> {
+  static const int _monthCount = 13;
+  late final PageController _pageController;
+  int _pageIndex = 0;
+  late DateTime _selectedDate;
+
+  List<DateTime> get _months {
+    final first = DateTime.utc(widget.today.year, widget.today.month);
+    return List<DateTime>.generate(
+      _monthCount,
+      (index) => DateTime.utc(first.year, first.month + index),
+    );
+  }
+
+  @override
+  void initState() {
+    super.initState();
+    _pageController = PageController(viewportFraction: 0.89);
+    _selectedDate = _defaultSelection(_months.first);
+  }
+
+  @override
+  void dispose() {
+    _pageController.dispose();
+    super.dispose();
+  }
+
+  bool _sameDay(DateTime first, DateTime second) =>
+      first.year == second.year && first.month == second.month && first.day == second.day;
+
+  bool _sameMonth(DateTime first, DateTime second) =>
+      first.year == second.year && first.month == second.month;
+
+  DateTime _defaultSelection(DateTime month) {
+    for (final row in widget.rows) {
+      if (_sameMonth(row.civil, month) && !row.civil.isBefore(widget.today)) return row.civil;
+    }
+    if (_sameMonth(widget.today, month)) return widget.today;
+    return DateTime.utc(month.year, month.month);
+  }
+
+  void _onPageChanged(int index) {
+    setState(() {
+      _pageIndex = index;
+      _selectedDate = _defaultSelection(_months[index]);
+    });
+  }
+
+  void _movePage(int direction) {
+    final target = (_pageIndex + direction).clamp(0, _monthCount - 1).toInt();
+    if (target != _pageIndex) {
+      _pageController.animateToPage(
+        target,
+        duration: const Duration(milliseconds: 320),
+        curve: Curves.easeOutCubic,
+      );
+    }
+  }
+
+  Map<String, List<_OccasionRow>> _eventsByDay(DateTime month) {
+    final result = <String, List<_OccasionRow>>{};
+    for (final row in widget.rows) {
+      if (_sameMonth(row.civil, month)) {
+        (result[_calendarDateKey(row.civil)] ??= <_OccasionRow>[]).add(row);
+      }
+    }
+    return result;
+  }
 
   @override
   Widget build(BuildContext context) {
-    final colour = upcoming ? palette.accent : palette.muted;
-    return GlassPanel(
-      radius: 18,
-      padding: const EdgeInsets.fromLTRB(13, 11, 13, 11),
-      child: Row(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: <Widget>[
-          Container(
-            width: 54,
-            padding: const EdgeInsets.symmetric(vertical: 6),
-            decoration: BoxDecoration(
-              color: upcoming ? palette.accent.withValues(alpha: 0.14) : palette.track,
-              borderRadius: BorderRadius.circular(12),
+    final palette = widget.palette;
+    final months = _months;
+    return Column(
+      key: const ValueKey<String>('islamic-occasion-calendar'),
+      children: <Widget>[
+        Row(
+          children: <Widget>[
+            IconButton(
+              key: const ValueKey<String>('occasion-calendar-previous'),
+              tooltip: 'پچھلا مہینہ',
+              onPressed: _pageIndex == 0 ? null : () => _movePage(-1),
+              icon: const Icon(Icons.chevron_right_rounded),
+              color: palette.accent,
             ),
-            child: Column(
-              children: <Widget>[
-                Text(
-                  '${row.civil.day}',
-                  style: TextStyle(
-                    fontFamily: kDigitFont,
-                    fontSize: 20,
-                    height: 1.05,
-                    fontWeight: FontWeight.w800,
-                    color: upcoming ? palette.accent : palette.ink,
-                  ),
-                ),
-                Text(
-                  kGregorianMonthsUrdu[(row.civil.month - 1).clamp(0, 11)],
-                  style: TextStyle(fontSize: 11, color: colour),
-                ),
-              ],
-            ),
-          ),
-          const SizedBox(width: 11),
-          Expanded(
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: <Widget>[
-                Text(
-                  row.event.title,
-                  maxLines: 2,
-                  overflow: TextOverflow.ellipsis,
-                  style: TextStyle(
-                    fontSize: 15,
-                    height: 1.3,
-                    fontWeight: FontWeight.w800,
-                    color: palette.ink,
-                  ),
-                ),
-                const SizedBox(height: 2),
-                Text(
-                  row.event.dateUrdu,
-                  style: TextStyle(fontSize: 12, color: palette.muted),
-                ),
-                if (row.event.note != null) ...<Widget>[
-                  const SizedBox(height: 3),
+            Expanded(
+              child: Column(
+                children: <Widget>[
                   Text(
-                    row.event.note!,
-                    style: TextStyle(fontSize: 12.5, height: 1.5, color: palette.muted),
+                    'مناسبات',
+                    textAlign: TextAlign.center,
+                    style: TextStyle(fontSize: 18, fontWeight: FontWeight.w800, color: palette.ink),
+                  ),
+                  Text(
+                    'نشان والی تاریخ منتخب کریں یا مہینہ بدلیں',
+                    textAlign: TextAlign.center,
+                    style: TextStyle(fontSize: 11.5, color: palette.muted),
                   ),
                 ],
-              ],
+              ),
+            ),
+            IconButton(
+              key: const ValueKey<String>('occasion-calendar-next'),
+              tooltip: 'اگلا مہینہ',
+              onPressed: _pageIndex == _monthCount - 1 ? null : () => _movePage(1),
+              icon: const Icon(Icons.chevron_left_rounded),
+              color: palette.accent,
+            ),
+          ],
+        ),
+        SizedBox(
+          height: 482,
+          child: PageView.builder(
+            key: const ValueKey<String>('occasion-calendar-pages'),
+            controller: _pageController,
+            itemCount: _monthCount,
+            onPageChanged: _onPageChanged,
+            itemBuilder: (context, index) {
+              final month = months[index];
+              final events = _eventsByDay(month);
+              final selected = _sameMonth(_selectedDate, month) ? _selectedDate : null;
+              return AnimatedBuilder(
+                animation: _pageController,
+                child: _CalendarMonthPage(
+                  month: month,
+                  today: widget.today,
+                  selectedDate: selected,
+                  events: events,
+                  calendar: widget.calendar,
+                  adjustment: widget.adjustment,
+                  palette: palette,
+                  onSelectDate: (date) => setState(() => _selectedDate = date),
+                ),
+                builder: (context, child) {
+                  final page = _pageController.hasClients &&
+                          _pageController.position.hasContentDimensions
+                      ? (_pageController.page ?? _pageIndex.toDouble())
+                      : _pageIndex.toDouble();
+                  final distance = (index - page).clamp(-1.0, 1.0).toDouble();
+                  final transform = Matrix4.identity()
+                    ..setEntry(3, 2, 0.0015)
+                    ..rotateY(-distance * 0.15)
+                    ..scale(1.0 - distance.abs() * 0.045);
+                  return Transform(
+                    alignment: distance < 0 ? Alignment.centerRight : Alignment.centerLeft,
+                    transform: transform,
+                    child: Padding(
+                      padding: const EdgeInsets.fromLTRB(4, 4, 4, 10),
+                      child: child,
+                    ),
+                  );
+                },
+              );
+            },
+          ),
+        ),
+      ],
+    );
+  }
+}
+
+class _CalendarMonthPage extends StatelessWidget {
+  const _CalendarMonthPage({
+    required this.month,
+    required this.today,
+    required this.selectedDate,
+    required this.events,
+    required this.calendar,
+    required this.adjustment,
+    required this.palette,
+    required this.onSelectDate,
+  });
+
+  final DateTime month;
+  final DateTime today;
+  final DateTime? selectedDate;
+  final Map<String, List<_OccasionRow>> events;
+  final LunarHijri calendar;
+  final int adjustment;
+  final GlassPalette palette;
+  final ValueChanged<DateTime> onSelectDate;
+
+  @override
+  Widget build(BuildContext context) {
+    final monthStart = DateTime.utc(month.year, month.month);
+    final firstDayOffset = monthStart.weekday % 7; // Sunday is the rightmost column.
+    final hijriMonth = calendar.dateFor(monthStart, adjustDays: adjustment);
+    return Semantics(
+      label: '${kGregorianMonthsUrdu[month.month - 1]} ${month.year}، ${hijriMonth.monthNameUrdu}',
+      child: Stack(
+        children: <Widget>[
+          Positioned(
+            left: 8,
+            right: 2,
+            top: 9,
+            bottom: 0,
+            child: DecoratedBox(
+              decoration: BoxDecoration(
+                color: const Color(0xFF071116).withValues(alpha: 0.72),
+                borderRadius: BorderRadius.circular(22),
+              ),
             ),
           ),
-          const SizedBox(width: 8),
-          Column(
-            crossAxisAlignment: CrossAxisAlignment.end,
-            children: <Widget>[
-              Text(
-                days == 0 ? 'آج' : (days > 0 ? '${formatCount(days)} دن' : 'گزشتہ'),
-                style: TextStyle(fontSize: 12, fontWeight: FontWeight.w700, color: colour),
+          Container(
+            decoration: BoxDecoration(
+              borderRadius: BorderRadius.circular(22),
+              gradient: LinearGradient(
+                begin: Alignment.topLeft,
+                end: Alignment.bottomRight,
+                colors: <Color>[
+                  const Color(0xFF293A40),
+                  const Color(0xFF15252C),
+                ],
               ),
-              if (row.event.recommendedFast) ...<Widget>[
-                const SizedBox(height: 4),
-                Container(
-                  padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
-                  decoration: BoxDecoration(
-                    color: palette.gold.withValues(alpha: 0.18),
-                    borderRadius: BorderRadius.circular(8),
-                  ),
-                  child: Text('روزہ مستحب', style: TextStyle(fontSize: 10.5, color: palette.gold)),
-                ),
+              border: Border.all(color: _calendarPageGold.withValues(alpha: 0.65)),
+              boxShadow: <BoxShadow>[
+                BoxShadow(color: const Color(0xFF071116).withValues(alpha: 0.78), blurRadius: 16, offset: const Offset(0, 7)),
+                BoxShadow(color: Colors.white.withValues(alpha: 0.07), blurRadius: 1, offset: const Offset(0, -1)),
               ],
-            ],
+            ),
+            child: ClipRRect(
+              borderRadius: BorderRadius.circular(21),
+              child: Stack(
+                children: <Widget>[
+                  Positioned(
+                    top: 0,
+                    left: 0,
+                    right: 0,
+                    height: 18,
+                    child: DecoratedBox(
+                      decoration: BoxDecoration(
+                        gradient: LinearGradient(
+                          colors: <Color>[
+                            _calendarPageGold.withValues(alpha: 0.35),
+                            Colors.transparent,
+                          ],
+                        ),
+                      ),
+                    ),
+                  ),
+                  Padding(
+                    padding: const EdgeInsets.fromLTRB(12, 16, 12, 11),
+                    child: Column(
+                      children: <Widget>[
+                        Row(
+                          children: <Widget>[
+                            Expanded(
+                              child: Column(
+                                crossAxisAlignment: CrossAxisAlignment.start,
+                                children: <Widget>[
+                                  Text(
+                                    '${kGregorianMonthsUrdu[month.month - 1]} ${month.year}',
+                                    maxLines: 1,
+                                    overflow: TextOverflow.ellipsis,
+                                    style: const TextStyle(
+                                      fontSize: 19,
+                                      fontWeight: FontWeight.w800,
+                                      color: _calendarPageGold,
+                                    ),
+                                  ),
+                                  Text(
+                                    'ہجری مہینہ: ${hijriMonth.monthNameUrdu} ${hijriMonth.year}ھ',
+                                    maxLines: 1,
+                                    overflow: TextOverflow.ellipsis,
+                                    style: const TextStyle(fontSize: 11.5, color: _calendarPageMuted),
+                                  ),
+                                ],
+                              ),
+                            ),
+                            const Icon(Icons.calendar_month_rounded, color: Color(0xFFD8BD81), size: 28),
+                          ],
+                        ),
+                        const SizedBox(height: 10),
+                        Row(
+                          children: const <String>[
+                            'اتوار', 'پیر', 'منگل', 'بدھ', 'جمعرات', 'جمعہ', 'ہفتہ',
+                          ].map((day) => Expanded(
+                                child: Text(
+                                  day,
+                                  textAlign: TextAlign.center,
+                                  maxLines: 1,
+                                  style: TextStyle(
+                                    fontSize: 9.5,
+                                    fontWeight: FontWeight.w700,
+                                    color: Color(0xFFD6DED6),
+                                  ),
+                                ),
+                              )).toList(growable: false),
+                        ),
+                        const SizedBox(height: 5),
+                        Expanded(
+                          child: GridView.builder(
+                            physics: const NeverScrollableScrollPhysics(),
+                            padding: EdgeInsets.zero,
+                            itemCount: 42,
+                            gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
+                              crossAxisCount: 7,
+                              mainAxisExtent: 34,
+                              mainAxisSpacing: 2,
+                              crossAxisSpacing: 2,
+                            ),
+                            itemBuilder: (context, index) {
+                              final date = monthStart.add(Duration(days: index - firstDayOffset));
+                              final inMonth = date.month == month.month;
+                              final dateEvents = events[_calendarDateKey(date)] ?? const <_OccasionRow>[];
+                              final selected = selectedDate != null &&
+                                  date.year == selectedDate!.year &&
+                                  date.month == selectedDate!.month &&
+                                  date.day == selectedDate!.day;
+                              final isToday = date.year == today.year &&
+                                  date.month == today.month &&
+                                  date.day == today.day;
+                              return _CalendarDayCell(
+                                date: date,
+                                inMonth: inMonth,
+                                isToday: isToday,
+                                selected: selected,
+                                eventCount: dateEvents.length,
+                                calendar: calendar,
+                                adjustment: adjustment,
+                                palette: palette,
+                                onTap: inMonth ? () => onSelectDate(date) : null,
+                              );
+                            },
+                          ),
+                        ),
+                        const SizedBox(height: 8),
+                        _SelectedCalendarDay(
+                          date: selectedDate ?? monthStart,
+                          events: events[_calendarDateKey(selectedDate ?? monthStart)] ?? const <_OccasionRow>[],
+                          calendar: calendar,
+                          adjustment: adjustment,
+                          palette: palette,
+                        ),
+                      ],
+                    ),
+                  ),
+                  Positioned(
+                    top: 6,
+                    left: 12,
+                    right: 12,
+                    child: IgnorePointer(
+                      child: Row(
+                        mainAxisAlignment: MainAxisAlignment.spaceEvenly,
+                        children: List<Widget>.generate(
+                          7,
+                          (index) => Container(
+                            width: 12,
+                            height: 12,
+                            decoration: BoxDecoration(
+                              color: const Color(0xFF24343B),
+                              shape: BoxShape.circle,
+                              border: Border.all(color: _calendarPageGold.withValues(alpha: 0.7), width: 1.2),
+                              boxShadow: <BoxShadow>[
+                                BoxShadow(color: palette.shadow.withValues(alpha: 0.8), blurRadius: 2, offset: const Offset(0, 1)),
+                              ],
+                            ),
+                          ),
+                        ),
+                      ),
+                    ),
+                  ),
+                ],
+              ),
+            ),
           ),
         ],
       ),
     );
   }
 }
+
+class _CalendarDayCell extends StatelessWidget {
+  const _CalendarDayCell({
+    required this.date,
+    required this.inMonth,
+    required this.isToday,
+    required this.selected,
+    required this.eventCount,
+    required this.calendar,
+    required this.adjustment,
+    required this.palette,
+    required this.onTap,
+  });
+
+  final DateTime date;
+  final bool inMonth;
+  final bool isToday;
+  final bool selected;
+  final int eventCount;
+  final LunarHijri calendar;
+  final int adjustment;
+  final GlassPalette palette;
+  final VoidCallback? onTap;
+
+  @override
+  Widget build(BuildContext context) {
+    final hijri = calendar.dateFor(date, adjustDays: adjustment);
+    final dateLabel = '${formatDateUrdu(date)}، ${formatHijriUrdu(hijri)}';
+    return Opacity(
+      opacity: inMonth ? 1 : 0.26,
+      child: Semantics(
+        button: inMonth,
+        label: eventCount > 0 ? '$dateLabel، مناسبت' : dateLabel,
+        child: Material(
+          color: Colors.transparent,
+          child: InkWell(
+            key: ValueKey<String>('occasion-day-${_calendarDateKey(date)}'),
+            onTap: onTap,
+            borderRadius: BorderRadius.circular(8),
+            child: Container(
+              decoration: BoxDecoration(
+                color: selected
+                    ? _calendarPageAccent.withValues(alpha: 0.26)
+                    : (eventCount > 0 ? _calendarPageGold.withValues(alpha: 0.12) : Colors.white.withValues(alpha: 0.035)),
+                borderRadius: BorderRadius.circular(8),
+                border: Border.all(
+                  color: isToday
+                      ? _calendarPageAccent
+                      : (eventCount > 0 ? _calendarPageGold.withValues(alpha: 0.8) : _calendarPageMuted.withValues(alpha: 0.32)),
+                  width: selected || isToday ? 1.4 : 0.7,
+                ),
+              ),
+              child: Stack(
+                children: <Widget>[
+                  Center(
+                    child: Column(
+                      mainAxisSize: MainAxisSize.min,
+                      children: <Widget>[
+                        Text(
+                          '${date.day}',
+                          style: TextStyle(
+                            fontFamily: kDigitFont,
+                            fontSize: 13,
+                            height: 1.05,
+                            fontWeight: FontWeight.w800,
+                            color: selected ? _calendarPageAccent : _calendarPageInk,
+                          ),
+                        ),
+                        Text(
+                          '${hijri.day}',
+                          style: TextStyle(
+                            fontFamily: kDigitFont,
+                            fontSize: 8.5,
+                            height: 1.0,
+                            color: _calendarPageMuted,
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+                  if (eventCount > 0)
+                    Positioned(
+                      top: 1,
+                      left: 2,
+                      child: const Icon(Icons.star_rounded, size: 8, color: _calendarPageGold),
+                    ),
+                ],
+              ),
+            ),
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+class _SelectedCalendarDay extends StatelessWidget {
+  const _SelectedCalendarDay({
+    required this.date,
+    required this.events,
+    required this.calendar,
+    required this.adjustment,
+    required this.palette,
+  });
+
+  final DateTime date;
+  final List<_OccasionRow> events;
+  final LunarHijri calendar;
+  final int adjustment;
+  final GlassPalette palette;
+
+  @override
+  Widget build(BuildContext context) {
+    final hijri = calendar.dateFor(date, adjustDays: adjustment);
+    return Container(
+      key: const ValueKey<String>('occasion-selected-date'),
+      width: double.infinity,
+      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 7),
+      decoration: BoxDecoration(
+        color: const Color(0xFF13232A).withValues(alpha: 0.78),
+        borderRadius: BorderRadius.circular(12),
+        border: Border.all(color: _calendarPageMuted.withValues(alpha: 0.4)),
+      ),
+      child: Row(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: <Widget>[
+          Padding(
+            padding: const EdgeInsets.only(top: 2),
+            child: Icon(
+              events.isEmpty ? Icons.event_note_rounded : Icons.event_available_rounded,
+              color: events.isEmpty ? _calendarPageMuted : _calendarPageGold,
+              size: 19,
+            ),
+          ),
+          const SizedBox(width: 8),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: <Widget>[
+                Text(
+                  '${formatDateUrdu(date)} • ${formatHijriUrdu(hijri)}',
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                  style: const TextStyle(fontSize: 10.5, color: _calendarPageMuted),
+                ),
+                if (events.isEmpty)
+                  Text(
+                    'اس تاریخ پر کوئی درج شدہ مناسبت نہیں۔',
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                    style: const TextStyle(fontSize: 12, color: _calendarPageMuted),
+                  )
+                else
+                  for (final row in events) ...<Widget>[
+                    Text(
+                      row.event.title,
+                      maxLines: 2,
+                      overflow: TextOverflow.ellipsis,
+                      style: const TextStyle(fontSize: 13, fontWeight: FontWeight.w800, color: _calendarPageGold),
+                    ),
+                    if (row.event.note != null)
+                      Text(
+                        row.event.note!,
+                        maxLines: 2,
+                        overflow: TextOverflow.ellipsis,
+                        style: const TextStyle(fontSize: 10.5, height: 1.25, color: _calendarPageMuted),
+                      ),
+                  ],
+              ],
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+String _calendarDateKey(DateTime date) =>
+    '${date.year}-${date.month.toString().padLeft(2, '0')}-${date.day.toString().padLeft(2, '0')}';
+
+const Color _calendarPageInk = Color(0xFFF1F4EE);
+const Color _calendarPageMuted = Color(0xFFB5C0B9);
+const Color _calendarPageGold = Color(0xFFE4BC70);
+const Color _calendarPageAccent = Color(0xFF7AC4A2);

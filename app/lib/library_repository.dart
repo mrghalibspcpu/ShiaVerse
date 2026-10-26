@@ -2,7 +2,9 @@ import 'dart:async';
 import 'dart:convert';
 import 'dart:io';
 import 'dart:math' as math;
+import 'dart:typed_data';
 
+import 'package:crypto/crypto.dart';
 import 'package:flutter/foundation.dart';
 import 'package:flutter/services.dart';
 import 'package:path/path.dart' as p;
@@ -22,10 +24,18 @@ export 'text_utils.dart'
         relevanceScore;
 
 /// Bumped whenever the text stored in the index changes for the same books, so
-/// readers who already hold an index rebuild it. 8: Nahj al-Balagha's index is
-/// the Arabic matn and Urdu translation of sermons, letters and sayings only —
-/// footnotes, introductions and the two extra divisions are no longer offered.
-const int _searchIndexVersion = 8;
+/// readers who already hold an index rebuild it. 9: the bundled Mafatih and
+/// Sahifa replacements change the indexed source text.
+const int _searchIndexVersion = 9;
+
+/// Updated read-only books shipped in this APK. A matching digest makes the
+/// migration idempotent; a stale installed copy is replaced atomically on the
+/// next startup before any reader opens it.
+const Map<String, String> _bundledDatabaseUpdates = <String, String>{
+  'mafatihdb-v4.db': 'cc01c16db7652df6b00997c1ab7eebba354733c75334a2fc8d795702afc4c182',
+  'Sahifa_Sajjadiyya_full_runtime.sqlite3':
+      'ad65542a5d430be203500464355d67148b774632cd12b8918808998724fc4f05',
+};
 const int _indexPageSize = 400;
 
 const String _kLastReadKey = 'last_read_v2';
@@ -52,6 +62,16 @@ class IndexBuildState {
   final bool active;
   final double progress;
   final String message;
+}
+
+/// One ordered unit a daily plan can open. `id` is a reader section id for
+/// ordinary books and a Mafatih row id when [duaItem] is present.
+class StudyUnit {
+  const StudyUnit({required this.id, required this.title, this.duaItem});
+
+  final int id;
+  final String title;
+  final DuaItem? duaItem;
 }
 
 /// Reads every collection the app can ship: the 14 hadith books, the Quran,
@@ -217,19 +237,49 @@ class LibraryRepository {
     }
   }
 
-  /// Copies a bundled asset into app storage when the file is not there yet.
+  /// Copies a bundled asset into app storage, or upgrades a stale copy when
+  /// this APK carries a newer read-only database.
   ///
-  /// Returns true when the database is usable. A missing asset is not an error:
-  /// the book stays available for download from the data screen.
+  /// The two replacement books are hash-pinned and atomically swapped before
+  /// any reader opens them. Other books keep the existing install-once path.
+  /// A missing asset is not an error: the download manager can fetch the book.
   Future<bool> _ensureLocalCopy(
     BookDefinition book,
     int index,
     void Function(double, String) onProgress,
   ) async {
-    final outputPath = p.join(_databaseDirectory, book.fileName);
-    final output = File(outputPath);
-    if (await output.exists() && await output.length() > 0) return true;
+    final output = File(p.join(_databaseDirectory, book.fileName));
+    final expectedUpdateHash = _bundledDatabaseUpdates[book.fileName];
 
+    if (expectedUpdateHash != null) {
+      ByteData data;
+      try {
+        data = await rootBundle.load('assets/databases/${book.fileName}');
+      } on FlutterError catch (_) {
+        return await output.exists() && await output.length() > 0;
+      }
+      final bytes = data.buffer.asUint8List(data.offsetInBytes, data.lengthInBytes);
+      if (bytes.isEmpty) return await output.exists() && await output.length() > 0;
+      final bundledHash = sha256.convert(bytes).toString();
+      if (bundledHash != expectedUpdateHash) {
+        throw StateError('Bundled database checksum does not match ${book.fileName}');
+      }
+      if (await output.exists() && await output.length() > 0) {
+        final currentHash = (await sha256.bind(output.openRead()).first).toString();
+        if (currentHash == expectedUpdateHash) {
+          await _removeDatabaseSidecars(output);
+          return true;
+        }
+      }
+      onProgress(
+        index / BookDefinition.all.length * 0.2,
+        'نیا ڈیٹا نصب ہو رہا ہے — ${book.titleUrdu}',
+      );
+      await _replaceDatabaseAtomically(output, bytes);
+      return true;
+    }
+
+    if (await output.exists() && await output.length() > 0) return true;
     onProgress(
       index / BookDefinition.all.length * 0.2,
       'کتب تیار ہو رہی ہیں — ${book.titleUrdu}',
@@ -246,8 +296,60 @@ class LibraryRepository {
     }
   }
 
+  Future<void> _replaceDatabaseAtomically(File output, List<int> bytes) async {
+    final backup = File('${output.path}.previous');
+    final replacement = File('${output.path}.replacement');
+
+    // Recover from a process interruption between the two same-directory
+    // renames, then start the new swap with a clean backup path.
+    if (await backup.exists()) {
+      if (await output.exists()) {
+        await backup.delete();
+      } else {
+        await backup.rename(output.path);
+      }
+    }
+    if (await replacement.exists()) await replacement.delete();
+    await replacement.writeAsBytes(bytes, flush: true);
+
+    try {
+      if (await output.exists()) await output.rename(backup.path);
+      await replacement.rename(output.path);
+      await _removeDatabaseSidecars(output);
+      if (await backup.exists()) {
+        try {
+          await backup.delete();
+        } on FileSystemException {
+          // The new database is committed; an orphaned backup is harmless and
+          // is cleaned up on the next attempt.
+        }
+      }
+    } catch (_) {
+      if (!await output.exists() && await backup.exists()) {
+        await backup.rename(output.path);
+      }
+      rethrow;
+    } finally {
+      if (await replacement.exists()) await replacement.delete();
+    }
+  }
+
+  Future<void> _removeDatabaseSidecars(File output) async {
+    for (final suffix in <String>['-wal', '-shm', '-journal']) {
+      final sidecar = File('${output.path}$suffix');
+      if (!await sidecar.exists()) continue;
+      try {
+        await sidecar.delete();
+      } on FileSystemException {
+        // These are only transient SQLite journals for the replaced,
+        // read-only source database; a locked leftover is harmless.
+      }
+    }
+  }
+
   /// Re-checks the disk after the installer finished and indexes what is new.
   Future<void> refreshAfterInstall({
+
     void Function(double progress, String message)? onProgress,
   }) async {
     if (!_initialized) {
@@ -920,6 +1022,44 @@ class LibraryRepository {
       'SELECT ID, title, Chapid, Secid FROM Sections WHERE Chapid = ? ORDER BY Secid',
       [chapterId],
     );
+  }
+
+  /// Ordered daily-study units for a library book. Hadith, Sahifa, fatawa, and
+  /// encyclopedia books use the same section ids their normal readers navigate;
+  /// Mafatih uses its individual dua entries so a plan can advance dua by dua.
+  Future<List<StudyUnit>> getStudyUnits(BookDefinition book) async {
+    if (book.source == CorpusSource.dua) {
+      final units = <StudyUnit>[];
+      for (final category in await getDuaCategories()) {
+        for (final item in await getDuaItems(category.id)) {
+          if (!item.isHeader) {
+            units.add(StudyUnit(id: item.rowId, title: item.name, duaItem: item));
+          }
+        }
+      }
+      return units;
+    }
+    if (book.source == CorpusSource.quran || book.source == CorpusSource.balagha) {
+      return const <StudyUnit>[];
+    }
+
+    final units = <StudyUnit>[];
+    final seen = <int>{};
+    for (final chapter in await getChapters(book)) {
+      final chapterId = _asInt(chapter['cid']) ?? _asInt(chapter['ID']);
+      if (chapterId == null) continue;
+      final chapterTitle = (chapter['title'] ?? book.titleUrdu).toString().trim();
+      for (final section in await getSections(book, chapterId)) {
+        final id = _asInt(section['Secid']) ?? _asInt(section['ID']);
+        if (id == null || !seen.add(id)) continue;
+        final title = (section['title'] ?? '').toString().trim();
+        units.add(StudyUnit(
+          id: id,
+          title: title.isEmpty ? chapterTitle : title,
+        ));
+      }
+    }
+    return units;
   }
 
   Future<List<Passage>> getSectionPassages(BookDefinition book, int sectionId) async {

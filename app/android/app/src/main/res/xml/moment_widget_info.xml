@@ -1,15 +1,15 @@
 <?xml version="1.0" encoding="utf-8"?>
-<!-- The widget keeps the size it always had when it is added (three cells
-     wide, two tall) but may now be resized down to a single row of text: the
-     provider cuts a compact plate for a short cell. -->
+<!-- The widget keeps the familiar three-by-two starting size. Resizing
+     switches between compact and full plates, both with enough room for the
+     quote, attribution, and refresh control. -->
 <appwidget-provider xmlns:android="http://schemas.android.com/apk/res/android"
     android:minWidth="250dp"
     android:minHeight="145dp"
     android:targetCellWidth="3"
     android:targetCellHeight="2"
-    android:minResizeWidth="110dp"
-    android:minResizeHeight="70dp"
-    android:updatePeriodMillis="1800000"
+    android:minResizeWidth="180dp"
+    android:minResizeHeight="110dp"
+    android:updatePeriodMillis="3600000"
     android:initialLayout="@layout/moment_widget"
     android:resizeMode="horizontal|vertical"
     android:widgetCategory="home_screen"

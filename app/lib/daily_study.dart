@@ -15,37 +15,96 @@ import 'dart:convert';
 
 import 'package:shared_preferences/shared_preferences.dart';
 
-/// Which book the plan walks through.
+/// Which book (or reading division of a book) the plan walks through.
+///
+/// Enum names are persisted in [StudyPlan]; keep existing names stable so
+/// current Quran and Nahj plans continue to load after an app update.
 enum StudyTrack {
   /// ختمِ قرآن: the 604 pages of the mushaf.
   quran('قرآنِ کریم', 'مصحف کے ۶۰۴ صفحات'),
 
-  /// نہج البلاغہ's sermons (خطبات).
+  /// Both dua collections remain separately selectable in the library.
+  mafatih('مفاتیح الجنان', 'دعائیں، اعمال اور زیارات'),
+  sahifa('صحیفہ سجادیہ', 'صحیفے اور مناجات کی ۸۳ دعائیں'),
+
+  /// نہج البلاغہ's sermons (خطبات), letters (خطوط), and wisdom (حکمت).
   balaghaSermons('نہج البلاغہ — خطبات', 'امیر المومنین علیہ السلام کے خطبات'),
-
-  /// نہج البلاغہ's letters (کتب و خطوط).
   balaghaLetters('نہج البلاغہ — خطوط', 'امیر المومنین علیہ السلام کے مکتوبات'),
+  balaghaWisdom('نہج البلاغہ — حکمت', 'اقوالِ قصار و حکمت بھری باتیں'),
 
-  /// Nahj al-Balagha's short sayings (حکمت و اقوالِ قصار).
-  balaghaWisdom('نہج البلاغہ — حکمت', 'اقوالِ قصار و حکمت بھری باتوں');
+  /// The complete hadith books already offered by the library.
+  tahzeeb('تہذیب الاحکام', 'کتابِ احادیث'),
+  alkafi('الکافی', 'کتابِ احادیث'),
+  alkhisal('الخصال', 'کتابِ احادیث'),
+  hakam('غرر الحکم', 'کتابِ احادیث'),
+  hidaya('ہدایۃ العلم', 'کتابِ احادیث'),
+  hikmatprophet('حکمت نامۂ رسول اکرم(ص)', 'کتابِ احادیث'),
+  imam('حکمت نامہ امام حسین(ع)', 'کتابِ احادیث'),
+  kamaledeen('کمال الدین و تمام النعمة', 'کتابِ احادیث'),
+  maniakbar('معانی الاخبار', 'کتابِ احادیث'),
+  manlahyahzur('من لا یحضره الفقیہ', 'کتابِ احادیث'),
+  mezan('میزان الحکمة', 'کتابِ احادیث'),
+  swab('ثواب الاعمال', 'کتابِ احادیث'),
+  towheed('کتاب التوحید', 'کتابِ احادیث'),
+  wasail('وسائل الشیعہ', 'کتابِ احادیث'),
+
+  /// Khamenei remains in the data catalog for compatibility but is not listed
+  /// in this new study picker, matching the visible دینی مسائل selection.
+  sistani('فتاویٰ — آیت اللہ سیستانی', 'احکام اور مسائل'),
+  najafi('فتاویٰ — آیت اللہ نجفی', 'احکام اور مسائل'),
+  encyclopedia('اثنا عشری انسائکلوپیڈیا', 'منتخب اردو مضامین');
 
   const StudyTrack(this.titleUrdu, this.subtitleUrdu);
 
   final String titleUrdu;
   final String subtitleUrdu;
 
-  /// `balaghatoc.TypeID` for the three Nahj al-Balagha tracks.
+  /// The corresponding catalog key for every book-backed track.
+  String get bookKey => switch (this) {
+        StudyTrack.quran => 'quran',
+        StudyTrack.mafatih => 'mafatih',
+        StudyTrack.sahifa => 'sahifa',
+        StudyTrack.balaghaSermons || StudyTrack.balaghaLetters || StudyTrack.balaghaWisdom =>
+          'nahjul_balagha',
+        StudyTrack.tahzeeb => 'tahzeeb',
+        StudyTrack.alkafi => 'alkafi',
+        StudyTrack.alkhisal => 'alkhisal',
+        StudyTrack.hakam => 'hakam',
+        StudyTrack.hidaya => 'hidaya',
+        StudyTrack.hikmatprophet => 'hikmatprophet',
+        StudyTrack.imam => 'imam',
+        StudyTrack.kamaledeen => 'kamaledeen',
+        StudyTrack.maniakbar => 'maniakbar',
+        StudyTrack.manlahyahzur => 'manlahyahzur',
+        StudyTrack.mezan => 'mezan',
+        StudyTrack.swab => 'swab',
+        StudyTrack.towheed => 'towheed',
+        StudyTrack.wasail => 'wasail',
+        StudyTrack.sistani => 'sistani',
+        StudyTrack.najafi => 'najafi',
+        StudyTrack.encyclopedia => 'athna_ashari_encyclopedia',
+      };
+
+  /// `balaghatext.Type` for a Nahj al-Balagha reading division.
   int? get balaghaType => switch (this) {
         StudyTrack.balaghaSermons => 1,
         StudyTrack.balaghaLetters => 2,
         StudyTrack.balaghaWisdom => 3,
-        StudyTrack.quran => null,
+        _ => null,
       };
 
   bool get isQuran => this == StudyTrack.quran;
+  bool get isMafatih => this == StudyTrack.mafatih;
 
-  /// What one portion counts: pages of the mushaf, or entries of a section.
-  String get unitLabelUrdu => isQuran ? 'صفحہ' : 'نمبر';
+  /// What the daily range counts in this book.
+  String get unitLabelUrdu => switch (this) {
+        StudyTrack.quran => 'صفحہ',
+        StudyTrack.balaghaSermons || StudyTrack.balaghaLetters || StudyTrack.balaghaWisdom => 'نمبر',
+        StudyTrack.mafatih || StudyTrack.sahifa => 'دعا',
+        StudyTrack.encyclopedia => 'مضمون',
+        StudyTrack.sistani || StudyTrack.najafi => 'باب',
+        _ => 'متن',
+      };
 }
 
 /// The mushaf's page count, fixed in every printed edition.
@@ -210,7 +269,9 @@ class StudyPortion {
     final base = safeUnits ~/ safeDays;
     final extra = safeUnits % safeDays;
     final before = clamped - 1;
-    final first = 1 + before * base + (before < extra ? before : extra);
+    final first = (1 + before * base + (before < extra ? before : extra))
+        .clamp(1, safeUnits)
+        .toInt();
     final length = base + (clamped <= extra ? 1 : 0);
     return StudyPortion(
       day: clamped,

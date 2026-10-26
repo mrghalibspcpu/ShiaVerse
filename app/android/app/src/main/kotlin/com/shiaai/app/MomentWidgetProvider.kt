@@ -7,6 +7,7 @@ import android.content.ComponentName
 import android.content.Context
 import android.content.Intent
 import android.database.sqlite.SQLiteDatabase
+import android.util.TypedValue
 import android.view.View
 import android.widget.RemoteViews
 import org.json.JSONArray
@@ -16,10 +17,10 @@ import kotlin.random.Random
 /** A genuinely useful Android launcher widget; refreshes on the platform's
  * hourly AppWidget schedule and can also be advanced with its refresh button.
  *
- * The plate is cut for the cell the launcher gives it: a tall cell shows the
- * verse, its reference, the next prayer and the Hijri date, while a short one
- * shows the verse alone. Both layouts carry the same view ids, so the same
- * update fills either of them.
+ * The plate is cut for the cell the launcher gives it: a compact cell keeps a
+ * shorter quote, its source, and the refresh button; a taller cell also shows
+ * the next prayer and Hijri date. Resizing triggers a fresh layout selection,
+ * and both layouts carry the same view ids.
  *
  * The line itself is fetched from the installed Quran and Ghurar al-Hikam
  * databases (and from the cache the app writes after it has opened them).
@@ -28,6 +29,18 @@ import kotlin.random.Random
 class MomentWidgetProvider : AppWidgetProvider() {
     override fun onUpdate(context: Context, manager: AppWidgetManager, ids: IntArray) {
         ids.forEach { updateOne(context, manager, it, hourly = true) }
+    }
+
+    override fun onAppWidgetOptionsChanged(
+        context: Context,
+        manager: AppWidgetManager,
+        appWidgetId: Int,
+        newOptions: android.os.Bundle,
+    ) {
+        super.onAppWidgetOptionsChanged(context, manager, appWidgetId, newOptions)
+        // Re-select the compact/full RemoteViews immediately after a resize;
+        // otherwise launchers keep showing a layout sized for the old bounds.
+        updateOne(context, manager, appWidgetId, hourly = false)
     }
 
     override fun onReceive(context: Context, intent: Intent) {
@@ -42,12 +55,12 @@ class MomentWidgetProvider : AppWidgetProvider() {
         val options = manager.getAppWidgetOptions(id)
         val minHeight = options.getInt(AppWidgetManager.OPTION_APPWIDGET_MIN_HEIGHT, 0)
         val minWidth = options.getInt(AppWidgetManager.OPTION_APPWIDGET_MIN_WIDTH, 0)
-        val compact = (minHeight in 1 until 110) || (minHeight == 0 && minWidth in 1 until 180)
+        val compact = (minHeight in 1 until 160) || (minWidth in 1 until 210)
         val views = RemoteViews(
             context.packageName,
             if (compact) R.layout.moment_widget_small else R.layout.moment_widget,
         )
-        val moments = loadMoments(context)
+        val moments = loadMoments(context, compact)
         val seed = if (hourly) System.currentTimeMillis() / HOUR_MS + id * 31L else System.nanoTime()
         val prefs = context.getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE)
         val key = "quote_$id"
@@ -58,6 +71,11 @@ class MomentWidgetProvider : AppWidgetProvider() {
         val quote = moments[selected]
         views.setTextViewText(R.id.moment_text, quote.text)
         views.setTextViewText(R.id.moment_reference, quote.reference)
+        views.setTextViewTextSize(
+            R.id.moment_text,
+            TypedValue.COMPLEX_UNIT_SP,
+            quoteTextSizeSp(quote.text.length, compact),
+        )
 
         // The next prayer and the Hijri date, as the app itself calculates
         // them. The widget reads them from the app's own preferences, so the
@@ -89,6 +107,15 @@ class MomentWidgetProvider : AppWidgetProvider() {
         manager.updateAppWidget(id, views)
     }
 
+    private fun quoteTextSizeSp(length: Int, compact: Boolean): Float = when {
+        compact && length >= 55 -> 12.5f
+        compact && length >= 35 -> 13.5f
+        compact -> 15f
+        length >= 105 -> 13.5f
+        length >= 70 -> 15f
+        else -> 17f
+    }
+
     private data class Moment(val text: String, val reference: String)
 
     companion object {
@@ -115,14 +142,17 @@ class MomentWidgetProvider : AppWidgetProvider() {
 
         /** Quran first, then Ghurar al-Hikam. The app's cache fills any gap
          * (a database the widget could not open). Built-in lines are last. */
-        private fun loadMoments(context: Context): List<Moment> {
+        private fun loadMoments(context: Context, compact: Boolean): List<Moment> {
+            // A compact plate receives shorter source lines; the full widget
+            // can show longer ayat/hadith with a proportionally smaller font.
+            val maxCharacters = if (compact) 70 else 140
             val live = ArrayList<Moment>(24)
-            live += queryQuran(databaseFile(context, "quran.db"))
-            live += queryGhurar(databaseFile(context, "hakam.db"))
+            live += queryQuran(databaseFile(context, "quran.db"), maxCharacters)
+            live += queryGhurar(databaseFile(context, "hakam.db"), maxCharacters)
             if (live.isNotEmpty()) return live
-            val cached = loadCached(context)
+            val cached = loadCached(context).filter { it.text.length <= maxCharacters }
             if (cached.isNotEmpty()) return cached
-            return fallbackMoments
+            return fallbackMoments.filter { it.text.length <= maxCharacters }.ifEmpty { fallbackMoments }
         }
 
         private fun databaseFile(context: Context, name: String): File? {
@@ -138,14 +168,14 @@ class MomentWidgetProvider : AppWidgetProvider() {
             return candidates.firstOrNull { it.isFile && it.length() > 1024L }
         }
 
-        private fun queryQuran(file: File?): List<Moment> {
+        private fun queryQuran(file: File?, maxCharacters: Int): List<Moment> {
             if (file == null) return emptyList()
             val sql = """
                 SELECT q.tr, q.Arabic, q.verse, q.chapter, COALESCE(cp.Name, '')
                 FROM Quran AS q
                 LEFT JOIN ChapterProperty AS cp ON cp.Id = q.chapter
-                WHERE LENGTH(COALESCE(q.tr, '')) BETWEEN 12 AND 240
-                  AND LENGTH(COALESCE(q.Arabic, '')) BETWEEN 6 AND 220
+                WHERE LENGTH(COALESCE(q.tr, '')) BETWEEN 12 AND $maxCharacters
+                  AND LENGTH(COALESCE(q.Arabic, '')) BETWEEN 6 AND ${maxCharacters + 20}
                 ORDER BY RANDOM() LIMIT 12
             """.trimIndent()
             return query(file, sql) { cursor ->
@@ -161,14 +191,14 @@ class MomentWidgetProvider : AppWidgetProvider() {
             }
         }
 
-        private fun queryGhurar(file: File?): List<Moment> {
+        private fun queryGhurar(file: File?, maxCharacters: Int): List<Moment> {
             if (file == null) return emptyList()
             val sql = """
                 SELECT p.mean, p.txt, COALESCE(s.title, '')
                 FROM Parags AS p
                 LEFT JOIN Sections AS s ON s.Secid = p.Secid
-                WHERE LENGTH(COALESCE(p.mean, '')) BETWEEN 12 AND 240
-                  AND LENGTH(COALESCE(p.txt, '')) BETWEEN 6 AND 260
+                WHERE LENGTH(COALESCE(p.mean, '')) BETWEEN 12 AND $maxCharacters
+                  AND LENGTH(COALESCE(p.txt, '')) BETWEEN 6 AND ${maxCharacters + 20}
                 ORDER BY RANDOM() LIMIT 12
             """.trimIndent()
             return query(file, sql) { cursor ->

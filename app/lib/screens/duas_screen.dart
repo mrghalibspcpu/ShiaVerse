@@ -13,7 +13,7 @@ import '../widgets/reader_display.dart';
 import '../widgets/chapter_wallpaper.dart';
 import '../widgets/resume_card.dart';
 import '../widgets/highlighted_text.dart';
-import '../text_utils.dart' show searchMatchRanges;
+import '../text_utils.dart' show arabicNumerals, searchMatchRanges;
 
 /// Mafatih al-Jinan: chapters, supplications, and the reader.
 class DuasHomeScreen extends StatefulWidget {
@@ -244,11 +244,20 @@ class DuaCategoryScreen extends StatelessWidget {
 }
 
 class DuaReaderScreen extends StatefulWidget {
-  const DuaReaderScreen({super.key, required this.library, required this.item, this.searchQuery = ''});
+  const DuaReaderScreen({
+    super.key,
+    required this.library,
+    required this.item,
+    this.searchQuery = '',
+    this.studyItems,
+  });
 
   final LibraryRepository library;
   final DuaItem item;
   final String searchQuery;
+
+  /// The portion's ordered dua entries. Null for an ordinary reader session.
+  final List<DuaItem>? studyItems;
 
   @override
   State<DuaReaderScreen> createState() => _DuaReaderScreenState();
@@ -353,6 +362,25 @@ class _DuaReaderScreenState extends State<DuaReaderScreen> with ReaderDisplayMod
     ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('کاپی ہو گیا۔')));
   }
 
+  int get _studyIndex {
+    final items = widget.studyItems;
+    return items == null ? -1 : items.indexWhere((item) => item.rowId == widget.item.rowId);
+  }
+
+  void _moveStudyItem(int delta) {
+    final items = widget.studyItems;
+    final next = _studyIndex + delta;
+    if (items == null || next < 0 || next >= items.length) return;
+    Navigator.of(context).pushReplacement(MaterialPageRoute<void>(
+      builder: (_) => DuaReaderScreen(
+        library: widget.library,
+        item: items[next],
+        searchQuery: widget.searchQuery,
+        studyItems: items,
+      ),
+    ));
+  }
+
   @override
   Widget build(BuildContext context) {
     final palette = _preferences.palette;
@@ -378,11 +406,25 @@ class _DuaReaderScreenState extends State<DuaReaderScreen> with ReaderDisplayMod
                         initialScrollIndex: _matchIndex < 0 ? 0 : _matchIndex + 1,
                         initialAlignment: 0.04,
                         padding: const EdgeInsets.fromLTRB(18, 8, 18, 112),
-                        itemCount: _lines.length + 1,
+                        itemCount: _lines.length + 1 + (widget.studyItems == null ? 0 : 1),
                         addAutomaticKeepAlives: false,
                         minCacheExtent: 350,
                         itemBuilder: (context, index) {
                           if (index == 0) return _header(textColor);
+                          if (index > _lines.length) {
+                            final studyIndex = _studyIndex;
+                            final items = widget.studyItems ?? const <DuaItem>[];
+                            return ReaderPrevNextBar(
+                              key: const ValueKey<String>('study-dua-prev-next'),
+                              hasPrevious: studyIndex > 0,
+                              hasNext: studyIndex >= 0 && studyIndex < items.length - 1,
+                              onPrevious: () => _moveStudyItem(-1),
+                              onNext: () => _moveStudyItem(1),
+                              previousLabel: 'پچھلی دعا',
+                              nextLabel: 'اگلی دعا',
+                              label: 'روزانہ مطالعہ — دعا ${arabicNumerals(studyIndex + 1)} از ${arabicNumerals(items.length)}',
+                            );
+                          }
                           return _lineBlock(_lines[index - 1], textColor);
                         },
                       ),

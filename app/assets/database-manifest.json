@@ -12,13 +12,14 @@
     "dua_items": 677,
     "dua_lines": 5378,
     "balagha_paragraphs": 3742,
-    "sahifa_rows": 4993,
+    "sahifa_rows": 2103,
     "fatwa_answers": 10151,
     "balagha_sections": 810
   },
   "download": {
     "extension": ".gz",
     "base_urls": [
+      "https://github.com/mrghalibspcpu/Shia-Ai/releases/download/databases-v2/",
       "https://github.com/mrghalibspcpu/Shia-Ai/releases/download/databases-v1/",
       "https://raw.githubusercontent.com/mrghalibspcpu/Shia-Ai/main/assets/"
     ]
@@ -274,8 +275,8 @@
       "title_urdu": "مفاتیح الجنان",
       "title_latin": "Mafatih al-Jinan",
       "record_label": "دعا",
-      "size_bytes": 9178112,
-      "sha256": "32de9bf0f1047a287aacc91fae9a353b76e12ee8f93310fd464efff4efe5c734",
+      "size_bytes": 9621504,
+      "sha256": "cc01c16db7652df6b00997c1ab7eebba354733c75334a2fc8d795702afc4c182",
       "records": {
         "M_items": 677,
         "Lines": 5378
@@ -332,11 +333,11 @@
       "title_urdu": "صحیفہ سجادیہ",
       "title_latin": "Sahifa Sajjadiyya",
       "record_label": "دعا",
-      "size_bytes": 2777088,
-      "sha256": "a823946073716788ee5b1c6c28394deed95372798d71735e95268569e5a420e9",
+      "size_bytes": 2801664,
+      "sha256": "ad65542a5d430be203500464355d67148b774632cd12b8918808998724fc4f05",
       "records": {
-        "saheefa_data": 4993,
-        "saheefa_index": 148
+        "saheefa_data": 2103,
+        "saheefa_index": 83
       }
     },
     {

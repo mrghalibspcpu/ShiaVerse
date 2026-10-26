@@ -135,6 +135,7 @@ class DataInstaller {
     // app/APK release can never take the database downloads offline.
     final bases = <String>[
       if (compiled.isNotEmpty) _normalized(compiled),
+      'https://github.com/mrghalibspcpu/Shia-Ai/releases/download/databases-v2/',
       'https://github.com/mrghalibspcpu/Shia-Ai/releases/download/databases-v1/',
       'https://raw.githubusercontent.com/mrghalibspcpu/Shia-Ai/main/assets/',
     ];

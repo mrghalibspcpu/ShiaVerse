@@ -2,7 +2,7 @@ name: Publish data release
 
 # Builds the compressed SQLite collections (dist/*.gz) and uploads them to a
 # GitHub Release. The app downloads `<name>.db.gz` from
-# `releases/download/databases-v1/` (pinned tag: `latest` would break the
+# `releases/download/databases-v2/` (pinned tag: `latest` would break the
 # day an APK release is published), verifies SHA-256 against its manifest,
 # and unpacks it on the device — so the APK itself stays small.
 #
@@ -21,11 +21,11 @@ on:
       tag:
         description: Release tag to create or update
         type: string
-        default: databases-v1
+        default: databases-v2
       title:
         description: Release title
         type: string
-        default: Corpus v1 — Shia Library databases
+        default: Corpus v2 — Shia Library databases
   push:
     paths:
       - 'assets/database-manifest.json'
@@ -56,8 +56,8 @@ jobs:
           INPUT_TAG: ${{ inputs.tag }}
           INPUT_TITLE: ${{ inputs.title }}
         run: |
-          echo "TAG=${INPUT_TAG:-databases-v1}" >> "$GITHUB_ENV"
-          echo "TITLE=${INPUT_TITLE:-Corpus v1 — Shia Library databases}" >> "$GITHUB_ENV"
+          echo "TAG=${INPUT_TAG:-databases-v2}" >> "$GITHUB_ENV"
+          echo "TITLE=${INPUT_TITLE:-Corpus v2 — Shia Library databases}" >> "$GITHUB_ENV"
 
       - name: Build compressed databases
         run: python3 scripts/publish_databases.py
@@ -81,7 +81,7 @@ jobs:
           else
             gh release create "$TAG" \
               --title "$TITLE" \
-              --notes "SQLite collections for the Shia Library app (21 databases, gzip-compressed). The app downloads these on first launch, verifies SHA-256 against its bundled manifest, then reads them fully offline."
+              --notes "SQLite collections for the Shia Library app (22 databases, gzip-compressed). The app downloads these on first launch, verifies SHA-256 against its bundled manifest, then reads them fully offline."
           fi
           gh release upload "$TAG" dist/*.gz dist/database-manifest.json --clobber
           gh release edit "$TAG" --draft=false
@@ -94,7 +94,7 @@ jobs:
             --jq '.assets[] | "\(.name)\t\(.size)"' | sort | tee published-assets.txt
           # Compare against the manifest, not a bare count: the release also
           # keeps superseded assets from earlier corpus revisions (the app's
-          # pinned `databases-v1` tag is updated in place with --clobber), and
+          # pinned `databases-v2` tag is updated in place with --clobber), and
           # a count of every *.gz in the release would flag those old files as
           # a failure. What matters is that every file THIS manifest names is
           # published with the right byte count.

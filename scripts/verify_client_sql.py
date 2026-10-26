@@ -282,11 +282,10 @@ def sahifa(connection: sqlite3.Connection) -> None:
     rows = connection.execute(
         f"SELECT section_id, section_title, container_type, container_id FROM ({query})"
     ).fetchall()
-    check("sahifa: supplication rows load", len(rows) > 0, f"{len(rows)} rows")
+    check("sahifa: refreshed Arabic/Urdu rows load", len(rows) == 2103, f"{len(rows)} rows")
     supplications = {row[0] for row in rows}
-    # 54 duas of Sahifa Sajjadiyya + 7 "مزید دعائیں" + 7 weekday duas +
-    # 15 Munajat Khamsa Ashar = 83. The rest of saheefa_data is site furniture
-    # (biography, lecture videos, quizzes) that must never be listed as a dua.
+    # The refreshed Drive database has 83 indexed sections and 2,103 Arabic
+    # and Urdu text rows; only t_id 1–4 are reader content.
     check(
         "sahifa: exactly the 83 supplications of the book",
         len(supplications) == 83,

@@ -48,6 +48,9 @@ from database_specs import (  # noqa: E402
 # 404. Keeping the tag fixed means the data release can be republished forever
 # (assets are replaced with --clobber) without apps noticing.
 DOWNLOAD_BASE_URLS = (
+    # The v2 release contains the refreshed Mafatih/Sahifa databases and a
+    # complete manifest; unchanged books continue to fall back to v1.
+    "https://github.com/mrghalibspcpu/Shia-Ai/releases/download/databases-v2/",
     "https://github.com/mrghalibspcpu/Shia-Ai/releases/download/databases-v1/",
     "https://raw.githubusercontent.com/mrghalibspcpu/Shia-Ai/main/assets/",
 )

@@ -401,7 +401,7 @@ jobs:
       # A tappable download link the owner can open on the phone.
       # Published as a *pre-release* on purpose: `releases/latest` must keep
       # pointing at the data release, because every installed app downloads
-      # its databases from the pinned `databases-v1` tag.
+      # its databases from the pinned `databases-v2` tag.
       #
       # The asset is named after the version, never `shia-library.apk`. Two
       # reasons, both learned the hard way: a phone that already holds a
