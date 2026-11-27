@@ -57,11 +57,17 @@ if grep -Eq 'Error:|Exception|unable to resolve' <<< "$launch"; then
   exit 1
 fi
 
-# am start can report success just before Flutter crashes; confirm it stays up.
-sleep 6
+# am start can report success just before Flutter crashes or shows a bootstrap
+# error; wait for bundled DB extraction and confirm both PID and installed DBs.
+sleep 8
 if ! adb shell pidof "$package" | grep -Eq '[0-9]+'; then
   adb logcat -d -t 200 -s AndroidRuntime:E ActivityTaskManager:E flutter:E || true
   echo '::error title=App launch failed::Process exited during startup'
+  exit 1
+fi
+if adb logcat -d -s flutter:E flutter:I | grep -Eq 'Bundled database checksum|Bad state:'; then
+  adb logcat -d -t 200 -s flutter:E flutter:I || true
+  echo '::error title=Flutter bootstrap error::Startup logged a Bad state / checksum error'
   exit 1
 fi
 

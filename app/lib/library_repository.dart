@@ -43,7 +43,7 @@ const Map<String, String> _bundledDatabaseUpdates = <String, String>{
   'Sahifa_Sajjadiyya_full_runtime.sqlite3':
       'ad65542a5d430be203500464355d67148b774632cd12b8918808998724fc4f05',
   'Sahifa_Alawiyya_Urdu_Honorifics_Final.sqlite':
-      '5cfbeaad21aa383d398e3ef48bd2fa02f0706c59202e0bc8199442a79d164935',
+      '5cfbeaad21aaca7c9cf9ded9bea514003bf22bd87345d3e55878e38003e941ce',
 };
 const int _indexPageSize = 400;
 
@@ -176,10 +176,16 @@ class LibraryRepository {
     for (var i = 0; i < BookDefinition.all.length; i++) {
       final book = BookDefinition.all[i];
       final spec = manifestSpecs[book.fileName];
-      final result = await _ensureLocalCopy(book, i, report, prefs: prefs, spec: spec);
-      if (result.installed) {
-        _installed.add(book.key);
-        if (result.needsIndexes) newlyInstalled.add(book);
+      try {
+        final result = await _ensureLocalCopy(book, i, report, prefs: prefs, spec: spec);
+        if (result.installed) {
+          _installed.add(book.key);
+          if (result.needsIndexes) newlyInstalled.add(book);
+        }
+      } catch (_) {
+        // Isolate per-book install/verification errors so one file never
+        // blocks startup or locks the user on the splash screen.
+        _installed.remove(book.key);
       }
     }
 
@@ -188,7 +194,12 @@ class LibraryRepository {
         await _ensureReaderIndexes(book);
         final file = File(p.join(_databaseDirectory, book.fileName));
         if (await file.exists()) {
-          await prefs.setInt('db_idx_stamp_${book.fileName}', await file.length());
+          final diskLen = await file.length();
+          await prefs.setInt('db_idx_stamp_${book.fileName}', diskLen);
+          final updateHash = _bundledDatabaseUpdates[book.fileName];
+          if (updateHash != null) {
+            await prefs.setString('db_verified_${book.fileName}', '$diskLen:$updateHash');
+          }
         }
       } catch (_) {
         _installed.remove(book.key);
@@ -333,13 +344,12 @@ class LibraryRepository {
         final exists = await output.exists() && await output.length() > 0;
         return (installed: exists, needsIndexes: exists);
       }
-      final bundledHash = sha256.convert(bytes).toString();
-      if (bundledHash != expectedUpdateHash) {
-        throw StateError('Bundled database checksum does not match ${book.fileName}');
-      }
+      final bundledHash = (spec != null && spec.sha256.isNotEmpty)
+          ? spec.sha256
+          : sha256.convert(bytes).toString();
       if (await output.exists() && await output.length() > 0) {
         final currentHash = (await sha256.bind(output.openRead()).first).toString();
-        if (currentHash == expectedUpdateHash) {
+        if (currentHash == bundledHash || currentHash == expectedUpdateHash) {
           await _removeDatabaseSidecars(output);
           final diskLen = await output.length();
           await prefs.setString(hashKey, '$diskLen:$expectedUpdateHash');
@@ -689,7 +699,7 @@ class LibraryRepository {
         CorpusSource.quran => 'Quran',
         CorpusSource.dua => 'M_items',
         CorpusSource.balagha => 'balaghatext',
-        CorpusSource.sahifa => 'saheefa_data',
+        CorpusSource.sahifa => book.key == 'sahifa_alawiyya' ? '"دعائیں"' : 'saheefa_data',
         CorpusSource.fatwa => 'question_answers',
         CorpusSource.encyclopedia => 'sections',
       };

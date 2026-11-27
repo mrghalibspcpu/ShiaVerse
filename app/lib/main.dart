@@ -449,7 +449,8 @@ class _LibraryBootstrapState extends State<LibraryBootstrap> {
       await widget.library.initialize(buildSearchIndex: false);
       if (mounted) widget.onReady();
       unawaited(widget.library.ensureSearchIndex());
-    } catch (error) {
+    } catch (error, stackTrace) {
+      debugPrint('LibraryBootstrap failed: $error\n$stackTrace');
       if (mounted) setState(() => _error = error.toString());
     } finally {
       _starting = false;

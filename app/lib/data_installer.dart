@@ -4,6 +4,7 @@ import 'dart:io';
 import 'package:crypto/crypto.dart';
 import 'package:flutter/services.dart' show rootBundle;
 import 'package:http/http.dart' as http;
+import 'package:shared_preferences/shared_preferences.dart';
 
 import 'data_packages.dart';
 
@@ -225,17 +226,35 @@ class DataInstaller {
     void Function(int done, int total)? onProgress,
   }) async {
     final targets = _catalog.packages.where(isInstalled).toList();
+    final prefs = await SharedPreferences.getInstance();
     final results = <(DataPackage, bool)>[];
     for (var i = 0; i < targets.length; i++) {
       final package = targets[i];
       final file = fileFor(package);
-      String digest;
-      try {
-        digest = (await sha256.bind(file.openRead()).first).toString().toLowerCase();
-      } catch (_) {
-        digest = '';
+      var ok = package.sha256.isEmpty;
+      if (!ok) {
+        String digest;
+        try {
+          digest = (await sha256.bind(file.openRead()).first).toString().toLowerCase();
+        } catch (_) {
+          digest = '';
+        }
+        if (digest == package.sha256) {
+          ok = true;
+        } else {
+          // Reader indexes (`_ensureReaderIndexes`) add B-tree pages to local
+          // copies of publisher-supplied databases after their initial SHA-256
+          // verification. Accept the file if its post-install stamp matches.
+          final diskLen = file.lengthSync();
+          final verified = prefs.getString('db_verified_${package.fileName}') ?? '';
+          final idxLen = prefs.getInt('db_idx_stamp_${package.fileName}');
+          if (idxLen == diskLen &&
+              (verified == package.sha256 || verified == '$diskLen:${package.sha256}')) {
+            ok = true;
+          }
+        }
       }
-      results.add((package, package.sha256.isEmpty || digest == package.sha256));
+      results.add((package, ok));
       onProgress?.call(i + 1, targets.length);
     }
     return results;

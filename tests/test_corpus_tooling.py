@@ -150,6 +150,28 @@ class ManifestTests(unittest.TestCase):
                 digest = hashlib.sha256(path.read_bytes()).hexdigest()
                 self.assertEqual(digest, by_name[name]["sha256"])
 
+    def test_dart_bundled_database_updates_match_manifest_and_assets(self):
+        import re
+
+        repo_dart = (ROOT / "app" / "lib" / "library_repository.dart").read_text(encoding="utf-8")
+        block_match = re.search(
+            r"const Map<String, String> _bundledDatabaseUpdates = <String, String>\{(.*?)\};",
+            repo_dart,
+            re.DOTALL,
+        )
+        self.assertIsNotNone(block_match, "_bundledDatabaseUpdates missing in library_repository.dart")
+        pairs = re.findall(r"'([^']+)'\s*:\s*'([0-9a-f]{64})'", block_match.group(1))
+        self.assertEqual(len(pairs), 3, f"Expected 3 bundled DB updates, got {pairs}")
+        by_name = {entry["name"]: entry for entry in self.manifest["databases"]}
+        app_assets = ROOT / "app" / "assets" / "databases"
+        for name, dart_hash in pairs:
+            with self.subTest(name):
+                self.assertIn(name, by_name)
+                self.assertEqual(dart_hash, by_name[name]["sha256"])
+                asset_path = app_assets / name
+                self.assertTrue(asset_path.is_file(), f"{name} missing in app/assets/databases")
+                self.assertEqual(dart_hash, hashlib.sha256(asset_path.read_bytes()).hexdigest())
+
 
 class ValidationTests(unittest.TestCase):
     """The three standalone collections are checked in, so validate them here."""

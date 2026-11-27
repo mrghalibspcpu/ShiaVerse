@@ -1,5 +1,9 @@
+import 'dart:io';
+
+import 'package:crypto/crypto.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:shiaverse/data_packages.dart';
+import 'package:shiaverse/models.dart';
 
 const String _manifest = '''
 {
@@ -102,6 +106,25 @@ void main() {
       expect(formatBytes(2048), '2.0 KB');
       expect(formatBytes(16943104), '16 MB');
       expect(formatBytes(241000000), '230 MB');
+    });
+
+    test('bundled database assets match manifest SHA-256 and BookDefinition.all', () {
+      final manifestFile = File('assets/database-manifest.json');
+      expect(manifestFile.existsSync(), isTrue);
+      final catalog = DataCatalog.parse(manifestFile.readAsStringSync());
+      expect(catalog.packages, hasLength(BookDefinition.all.length));
+      for (final book in BookDefinition.all) {
+        final pkg = catalog.byKey(book.key);
+        expect(pkg, isNotNull, reason: 'Missing manifest entry for ${book.key}');
+        expect(pkg!.fileName, book.fileName);
+        final bundledFile = File('assets/databases/${book.fileName}');
+        if (bundledFile.existsSync()) {
+          final bytes = bundledFile.readAsBytesSync();
+          expect(bytes.length, pkg.sizeBytes, reason: '${book.fileName} byte length mismatch');
+          final digest = sha256.convert(bytes).toString();
+          expect(digest, pkg.sha256, reason: '${book.fileName} SHA-256 mismatch');
+        }
+      }
     });
   });
 }
