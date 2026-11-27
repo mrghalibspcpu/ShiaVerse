@@ -81,7 +81,7 @@ jobs:
         shell: bash
         run: |
           set +e
-          flutter analyze --no-pub 2>&1 | tee /tmp/flutter-analyze.log
+          flutter analyze --no-pub --no-fatal-infos 2>&1 | tee /tmp/flutter-analyze.log
           status=${PIPESTATUS[0]}
           set -e
           if [[ $status -ne 0 ]]; then

@@ -1,0 +1,5 @@
+analyzer:
+  errors:
+    # Flutter 3.47+ marked 'package:flutter/material.dart' with an experimental
+    # material_ui deprecation info hint across standard Material apps.
+    deprecated_member_use: ignore
