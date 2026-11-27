@@ -241,9 +241,10 @@ void main() {
         }
         day = day.add(const Duration(days: 1));
       }
-      // 30th of a 29-day month is rejected cleanly instead of rolling into next month.
-      expect(calendar.lengthOfMonth(1447, 9), 29);
-      expect(calendar.civilDateFor(const HijriDate(1447, 9, 30)), isNull);
+      // 30th of a 29-day month (Sha'ban 1447 is 29 days: Jan 21 to Feb 18, 2026)
+      // is rejected cleanly instead of rolling into Ramadan.
+      expect(calendar.lengthOfMonth(1447, 8), 29);
+      expect(calendar.civilDateFor(const HijriDate(1447, 8, 30)), isNull);
     });
 
     test('a day before the crescent is asked for still answers', () {

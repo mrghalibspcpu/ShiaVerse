@@ -6,7 +6,7 @@ import 'package:flutter/rendering.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:shared_preferences/shared_preferences.dart';
-import 'package:shiaverse/astro/hijri_calendar.dart' show formatHijriUrdu;
+import 'package:shiaverse/astro/hijri_calendar.dart' show HijriDate, formatHijriUrdu;
 import 'package:shiaverse/astro/prayer_format.dart' show weekdayUrdu;
 import 'package:shiaverse/app_theme.dart';
 import 'package:shiaverse/data_installer.dart';
@@ -371,15 +371,8 @@ void main() {
     final (prayer, tasbeeh) = await controllersAt(tester, localTime(12, 10));
     await tester.pumpWidget(host(prayer, tasbeeh, const IslamicCalendarScreen()));
     await settle(tester);
-    expect(find.text('اس سال کے ایام'), findsOneWidget);
-    expect(find.text('3 جمادی الاول 1448ھ — G-11، اسلام آباد'), findsOneWidget);
-    final calendarList = find.byType(ListView).first;
-    for (var attempt = 0;
-        attempt < 12 && find.byKey(const ValueKey<String>('islamic-occasion-calendar')).evaluate().isEmpty;
-        attempt++) {
-      await tester.drag(calendarList, const Offset(0, -320));
-      await tester.pumpAndSettle();
-    }
+    // The 3D occasion calendar is now the 2nd element from the top (right under
+    // the hero banner), visible immediately without scrolling.
     expect(find.byKey(const ValueKey<String>('islamic-occasion-calendar')), findsOneWidget);
     expect(find.byKey(const ValueKey<String>('occasion-calendar-pages')), findsOneWidget);
     await tester.ensureVisible(find.byKey(const ValueKey<String>('occasion-calendar-next')));
@@ -418,6 +411,15 @@ void main() {
     await revealOccasion(hijriYear, 6, 3, 'شہادتِ حضرت فاطمہ زہرا س');
     await revealOccasion(hijriYear + 1, 1, 10, 'یومِ عاشورہ');
     await revealOccasion(hijriYear, 12, 18, 'عیدِ غدیر');
+    final calendarList = find.byType(ListView).first;
+    for (var attempt = 0;
+        attempt < 12 && find.text('اس سال کے ایام').evaluate().isEmpty;
+        attempt++) {
+      await tester.drag(calendarList, const Offset(0, -320));
+      await tester.pumpAndSettle();
+    }
+    expect(find.text('اس سال کے ایام'), findsOneWidget);
+    expect(find.text('3 جمادی الاول 1448ھ — G-11، اسلام آباد'), findsOneWidget);
     expect(tester.takeException(), isNull);
     expect(find.byType(SectionBackground), findsOneWidget);
     expectWallpaperInsidePanels(tester);
@@ -425,21 +427,51 @@ void main() {
     await finish(tester, prayer, tasbeeh);
   });
 
-  testWidgets('the calendar converter accepts a date and looks up its Shia occasion', (tester) async {
+  testWidgets('the calendar converter converts accurately in both directions and looks up Shia occasions', (tester) async {
     phone(tester);
     final (prayer, tasbeeh) = await controllersAt(tester, localTime(12, 10));
     final hijriNewYear = prayer.lunarHijri.civilStartOfMonth(1449, 1);
     await tester.pumpWidget(host(prayer, tasbeeh, const IslamicCalendarScreen()));
     await settle(tester);
+    final calendarList = find.byType(ListView).first;
+    for (var attempt = 0;
+        attempt < 12 && find.byKey(const ValueKey<String>('date-converter-panel')).evaluate().isEmpty;
+        attempt++) {
+      await tester.drag(calendarList, const Offset(0, -320));
+      await tester.pumpAndSettle();
+    }
+    await tester.ensureVisible(find.byKey(const ValueKey<String>('gregorian-date-input')));
+    await tester.pumpAndSettle();
     await tester.enterText(
       find.byKey(const ValueKey<String>('gregorian-date-input')),
       '${hijriNewYear.day.toString().padLeft(2, '0')}/${hijriNewYear.month.toString().padLeft(2, '0')}/${hijriNewYear.year}',
     );
+    await tester.ensureVisible(find.text('تبدیل کریں'));
+    await tester.pumpAndSettle();
     await tester.tap(find.text('تبدیل کریں'));
     await settle(tester);
+    await tester.ensureVisible(find.text('آغازِ سالِ ہجری'));
+    await tester.pumpAndSettle();
     expect(find.text('آغازِ سالِ ہجری'), findsOneWidget);
     expect(find.textContaining('دن: ${weekdayUrdu(hijriNewYear)}'), findsOneWidget);
     expect(find.textContaining(formatHijriUrdu(prayer.lunarHijri.dateFor(hijriNewYear))), findsOneWidget);
+
+    // Switch to Hijri → Gregorian mode and convert 10 Muharram 1449 AH.
+    await tester.ensureVisible(find.byKey(const ValueKey<String>('converter-mode-hijri-to-greg')));
+    await tester.pumpAndSettle();
+    await tester.tap(find.byKey(const ValueKey<String>('converter-mode-hijri-to-greg')));
+    await settle(tester);
+    await tester.enterText(find.byKey(const ValueKey<String>('hijri-day-input')), '10');
+    await tester.enterText(find.byKey(const ValueKey<String>('hijri-year-input')), '1449');
+    await tester.ensureVisible(find.text('تبدیل کریں'));
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('تبدیل کریں'));
+    await settle(tester);
+    final ashuraCivil = prayer.lunarHijri.civilDateFor(const HijriDate(1449, 1, 10))!;
+    await tester.ensureVisible(find.text('یومِ عاشورہ'));
+    await tester.pumpAndSettle();
+    expect(find.text('یومِ عاشورہ'), findsOneWidget);
+    expect(find.textContaining('دن: ${weekdayUrdu(ashuraCivil)}'), findsOneWidget);
     expect(tester.takeException(), isNull);
     await finish(tester, prayer, tasbeeh);
   });
