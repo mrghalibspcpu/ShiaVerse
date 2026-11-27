@@ -157,13 +157,26 @@ void main() {
   Widget homeScreen({LibraryRepository? library}) {
     final repository = library ?? LibraryRepository();
     return Scaffold(
-      body: SafeArea(
-        bottom: false,
-        child: HomeDashboard(
-          library: repository,
-          onSearch: () {},
-          onOpenData: () {},
-        ),
+      backgroundColor: const Color(0xFFF6F1E4),
+      body: Stack(
+        fit: StackFit.expand,
+        children: <Widget>[
+          Positioned.fill(
+            child: Image.asset(
+              'assets/images/home_light_wallpaper.jpg',
+              fit: BoxFit.cover,
+              alignment: Alignment.topCenter,
+            ),
+          ),
+          SafeArea(
+            bottom: false,
+            child: HomeDashboard(
+              library: repository,
+              onSearch: () {},
+              onOpenData: () {},
+            ),
+          ),
+        ],
       ),
       bottomNavigationBar: HomeDockBar(
         selected: null,

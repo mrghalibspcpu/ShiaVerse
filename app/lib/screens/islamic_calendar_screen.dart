@@ -380,7 +380,7 @@ class _GregorianDateConverterState extends State<_GregorianDateConverter> {
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.stretch,
         children: <Widget>[
-          const GlassSectionHeader(title: 'تاریخ تبدیل کار (عیسوی ⇄ ہجری)'),
+          const GlassSectionHeader(title: 'تاریخ تبدیل کار (عیسوی و ہجری)'),
           const SizedBox(height: 8),
           Container(
             padding: const EdgeInsets.all(4),
@@ -394,7 +394,7 @@ class _GregorianDateConverterState extends State<_GregorianDateConverter> {
                 Expanded(
                   child: _ModeTabButton(
                     key: const ValueKey<String>('converter-mode-greg-to-hijri'),
-                    label: 'عیسوی ← ہجری',
+                    label: 'عیسوی سے ہجری',
                     selected: isGregToHijri,
                     palette: palette,
                     onTap: () => setState(() {
@@ -407,7 +407,7 @@ class _GregorianDateConverterState extends State<_GregorianDateConverter> {
                 Expanded(
                   child: _ModeTabButton(
                     key: const ValueKey<String>('converter-mode-hijri-to-greg'),
-                    label: 'ہجری ← عیسوی',
+                    label: 'ہجری سے عیسوی',
                     selected: !isGregToHijri,
                     palette: palette,
                     onTap: () => setState(() {

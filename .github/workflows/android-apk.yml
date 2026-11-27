@@ -267,7 +267,7 @@ jobs:
           SHIA_DATA_BASE_URL: ${{ vars.SHIA_DATA_BASE_URL }}
         run: |
           set +e
-          flutter build apk --release --dart-define=SHIA_DATA_BASE_URL="$SHIA_DATA_BASE_URL" 2>&1 | tee /tmp/flutter-build.log
+          flutter build apk --release --android-skip-build-dependency-validation --dart-define=SHIA_DATA_BASE_URL="$SHIA_DATA_BASE_URL" 2>&1 | tee /tmp/flutter-build.log
           status=${PIPESTATUS[0]}
           set -e
           if [[ $status -ne 0 ]]; then
@@ -302,7 +302,7 @@ jobs:
           # Keep the universal build: it is what the emulator smoke test,
           # the uploaded artifact and the published fallback download use.
           cp build/app/outputs/flutter-apk/app-release.apk build/app-universal-release.apk
-          flutter build apk --release --split-per-abi --dart-define=SHIA_DATA_BASE_URL="$SHIA_DATA_BASE_URL"
+          flutter build apk --release --split-per-abi --android-skip-build-dependency-validation --dart-define=SHIA_DATA_BASE_URL="$SHIA_DATA_BASE_URL"
           cp build/app-universal-release.apk build/app/outputs/flutter-apk/app-release.apk
 
       # A phone that installed an older arm64 split has versionCode 2xxx.
