@@ -7,10 +7,11 @@ app/assets/databases/*.sqlite
 app/assets/databases/*.sqlite3
 assets/databases/*.sqlite
 assets/databases/*.sqlite3
-# Hash-pinned replacements bundled in 1.29 so existing installs migrate
-# Mafatih and Sahifa before opening the readers.
+# Hash-pinned replacements bundled so existing installs have Mafatih,
+# Sahifa Sajjadiyya, and Sahifa Alawiyya immediately offline.
 !app/assets/databases/mafatihdb-v4.db
 !app/assets/databases/Sahifa_Sajjadiyya_full_runtime.sqlite3
+!app/assets/databases/Sahifa_Alawiyya_Urdu_Honorifics_Final.sqlite
 app/assets/databases/*.db-shm
 app/assets/databases/*.db-wal
 
@@ -48,7 +49,12 @@ deliverables/
 # The encyclopaedia reader edition is committed gzipped; the expanded .db is a
 # build artefact (scripts/build_encyclopedia_db.py writes it on demand).
 assets/athna_ashari_encyclopedia.db
+assets/Sahifa_Alawiyya_Urdu_Honorifics_Final.sqlite
+
+# Raw source artwork generated during wallpaper preparation.
+docs/assets-src/*_raw.jpg
 
 # The raw corpus downloaded from Google Drive (20 MB ZIP). The app edition is
 # assets/athna_ashari_encyclopedia.db.gz; the ZIP is only the builder's input.
 google_drive/
+assets/khamenei_urdu_fatawa.sqlite

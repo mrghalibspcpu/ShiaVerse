@@ -48,11 +48,11 @@ from database_specs import (  # noqa: E402
 # 404. Keeping the tag fixed means the data release can be republished forever
 # (assets are replaced with --clobber) without apps noticing.
 DOWNLOAD_BASE_URLS = (
-    # The v2 release contains the refreshed Mafatih/Sahifa databases and a
-    # complete manifest; unchanged books continue to fall back to v1.
+    # Primary repository release (databases-v2) plus legacy Shia-Ai fallbacks.
+    "https://github.com/mrghalibspcpu/ShiaVerse/releases/download/databases-v2/",
     "https://github.com/mrghalibspcpu/Shia-Ai/releases/download/databases-v2/",
     "https://github.com/mrghalibspcpu/Shia-Ai/releases/download/databases-v1/",
-    "https://raw.githubusercontent.com/mrghalibspcpu/Shia-Ai/main/assets/",
+    "https://raw.githubusercontent.com/mrghalibspcpu/ShiaVerse/main/assets/",
 )
 DOWNLOAD_EXTENSION = ".gz"
 MAX_ENTRY_BYTES = 100 * 1024 * 1024
@@ -227,6 +227,7 @@ def write_manifest(records: list[dict]) -> None:
         "dua_lines": sum(r["records"].get("Lines", 0) for r in records),
         "balagha_paragraphs": sum(r["records"].get("balaghatext", 0) for r in records),
         "sahifa_rows": sum(r["records"].get("saheefa_data", 0) for r in records),
+        "sahifa_alawiyya_duas": sum(r["records"].get("دعائیں", 0) for r in records),
         "fatwa_answers": sum(r["records"].get("question_answers", 0) for r in records),
         "balagha_sections": sum(r["records"].get("balaghatoc", 0) for r in records),
     }

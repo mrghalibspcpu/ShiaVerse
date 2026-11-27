@@ -229,6 +229,23 @@ void main() {
       expect(calendar.dateFor(day, adjustDays: -1), HijriDate(1448, 5, 5));
     });
 
+    test('civilDateFor round-trips every Hijri day back to its exact Gregorian day', () {
+      final calendar = LunarHijri(latitude: islamabad.$1, longitude: islamabad.$2);
+      var day = DateTime.utc(2024, 5, 10);
+      final last = DateTime.utc(2030, 2, 3);
+      while (day.isBefore(last)) {
+        for (final adj in const <int>[-1, 0, 1]) {
+          final hijri = calendar.dateFor(day, adjustDays: adj);
+          expect(calendar.civilDateFor(hijri, adjustDays: adj), day,
+              reason: '$hijri (adj=$adj) must invert back to $day');
+        }
+        day = day.add(const Duration(days: 1));
+      }
+      // 30th of a 29-day month is rejected cleanly instead of rolling into next month.
+      expect(calendar.lengthOfMonth(1447, 9), 29);
+      expect(calendar.civilDateFor(const HijriDate(1447, 9, 30)), isNull);
+    });
+
     test('a day before the crescent is asked for still answers', () {
       // March 1995 is well before the Umm al-Qura table begins, and the
       // astronomy does not stop where the table does: 29 Ramadan 1415.

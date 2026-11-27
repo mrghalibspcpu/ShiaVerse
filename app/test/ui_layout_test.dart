@@ -199,8 +199,8 @@ void main() {
       expect(find.text('G-11، اسلام آباد'), findsOneWidget);
       expect(find.text('قرآنِ کریم'), findsOneWidget);
       expect(find.text('ترجمہ و تفسیر کے ساتھ'), findsOneWidget);
-      expect(find.text('ایک لاکھ کے قریب احادیث'), findsOneWidget);
-      expect(find.text('مفاتیح الجنان و صحیفہ سجادیہ'), findsOneWidget);
+      expect(find.text('دس مستند کتبِ احادیث'), findsOneWidget);
+      expect(find.text('مفاتیح الجنان و صحیفہ سجادیہ و علویہ'), findsOneWidget);
       expect(find.text('مکمل'), findsOneWidget);
       expect(find.text('نہج البلاغہ'), findsOneWidget);
       expect(find.text('دینی مسائل'), findsOneWidget);
@@ -475,11 +475,11 @@ void main() {
     await installer.close();
   });
 
-  testWidgets('every default page palette is white', (tester) async {
+  testWidgets('every default page palette is white while HomeShell paints its light wallpaper', (tester) async {
     await tester.pumpWidget(MaterialApp(theme: buildLightTheme(), home: Builder(builder: (context) {
       expect(Theme.of(context).scaffoldBackgroundColor, Colors.white);
       expect(GlassPalette.of(context).scaffold, Colors.white);
-      expect(DashboardPalette.of(context).backdrop.colors, everyElement(Colors.white));
+      expect(DashboardPalette.of(context).backdrop.colors, everyElement(const Color(0x00FFFFFF)));
       return const SizedBox.shrink();
     })));
     expect((await ReaderPreferences.load()).palette.background, Colors.white);

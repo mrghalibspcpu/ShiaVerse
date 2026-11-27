@@ -44,20 +44,27 @@ void main() {
   });
 
   group('corpus catalogue', () {
-    test('lists the 14 hadith books plus the curated collections', () {
-      // Ten extra collections: Quran, Mafatih, Sahifa, Nahj al-Balagha, the
-      // curated encyclopaedia and the three marjas.
-      expect(BookDefinition.all, hasLength(22));
-      expect(BookDefinition.hadithBooks, hasLength(14));
+    test('lists the 10 hadith books plus the curated collections', () {
+      // Nine extra collections: Quran, Mafatih, Sahifa Sajjadiyya, Sahifa
+      // Alawiyya, Nahj al-Balagha, the curated encyclopaedia and the three marjas.
+      expect(BookDefinition.all, hasLength(19));
+      expect(BookDefinition.hadithBooks, hasLength(10));
       expect(
         BookDefinition.newBooks.map((book) => book.key),
         <String>['athna_ashari_encyclopedia'],
       );
       expect(BookDefinition.byKey('athna_ashari_encyclopedia')?.source,
           CorpusSource.encyclopedia);
-      expect(BookDefinition.byKey('tahzeeb')?.fileName, 'Tahzeeb.db');
+      expect(BookDefinition.byKey('tahzeeb'), isNull);
+      expect(BookDefinition.byKey('wasail'), isNull);
+      expect(BookDefinition.byKey('mezan'), isNull);
+      expect(BookDefinition.byKey('hikmatprophet'), isNull);
+      expect(BookDefinition.byKey('alkafi')?.fileName, 'alkafi.db');
+      expect(BookDefinition.byKey('hidaya')?.fileName, 'hidaya.db');
       expect(BookDefinition.byKey('quran')?.source, CorpusSource.quran);
       expect(BookDefinition.byKey('mafatih')?.fileName, 'mafatihdb-v4.db');
+      expect(BookDefinition.byKey('sahifa_alawiyya')?.fileName,
+          'Sahifa_Alawiyya_Urdu_Honorifics_Final.sqlite');
       expect(BookDefinition.byKey('nahjul_balagha')?.source, CorpusSource.balagha);
       expect(BookDefinition.byKey('does-not-exist'), isNull);
     });
@@ -264,22 +271,28 @@ void main() {
   });
 
   group('dua library entry', () {
-    test('Mafatih al-Jinan and Sahifa Sajjadiyya share one tile', () {
-      expect(duaCollectionBooks.map((book) => book.key).toList(), ['mafatih', 'sahifa']);
+    test('Mafatih al-Jinan, Sahifa Sajjadiyya and Sahifa Alawiyya share one tile', () {
+      expect(
+        duaCollectionBooks.map((book) => book.key).toList(),
+        ['mafatih', 'sahifa', 'sahifa_alawiyya'],
+      );
       expect(duaCollectionBooks.first.source, CorpusSource.dua);
+      expect(duaCollectionBooks[1].source, CorpusSource.sahifa);
       expect(duaCollectionBooks.last.source, CorpusSource.sahifa);
       expect(kDuaCollectionTitle, contains('مفاتیح الجنان'));
       expect(kDuaCollectionTitle, contains('صحیفہ سجادیہ'));
+      expect(kDuaCollectionTitle, contains('علویہ'));
     });
 
-    test('neither book also gets a card of its own', () {
+    test('none of the three books also gets a card of its own', () {
       final keys = featuredCollections.map((book) => book.key).toSet();
       for (final book in duaCollectionBooks) {
         expect(keys, isNot(contains(book.key)));
       }
-      // Both books are still in the library itself (search, downloads, links).
+      // All three books are still in the library itself (search, downloads, links).
       expect(BookDefinition.byKey('mafatih'), isNotNull);
       expect(BookDefinition.byKey('sahifa'), isNotNull);
+      expect(BookDefinition.byKey('sahifa_alawiyya'), isNotNull);
     });
   });
 

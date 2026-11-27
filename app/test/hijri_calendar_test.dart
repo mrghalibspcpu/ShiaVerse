@@ -44,15 +44,28 @@ void main() {
       final start = DateTime.utc(2009, 1, 1);
       var previous = HijriDate.fromGregorian(start);
       for (var day = 1; day < 365 * 48; day++) {
-        final date = HijriDate.fromGregorian(start.add(Duration(days: day)));
+        final civil = start.add(Duration(days: day));
+        final date = HijriDate.fromGregorian(civil);
         expect(date.month, inInclusiveRange(1, 12));
         expect(date.day, inInclusiveRange(1, 30));
+        expect(date.toGregorian(), civil);
         final nextDay = date.day == previous.day + 1 && date.month == previous.month;
         final nextMonth = date.day == 1 &&
             previous.day >= 29 &&
             (date.month == previous.month + 1 || (date.month == 1 && previous.month == 12));
         expect(nextDay || nextMonth, isTrue, reason: '$previous → $date');
         previous = date;
+      }
+    });
+
+    test('tabular Hijri toGregorian round-trips outside the Umm al-Qura table', () {
+      for (final civil in <DateTime>[
+        DateTime.utc(1990, 1, 1),
+        DateTime.utc(2000, 12, 27),
+        DateTime.utc(2080, 6, 15),
+      ]) {
+        final hijri = HijriDate.fromGregorian(civil);
+        expect(hijri.toGregorian(), civil);
       }
     });
   });

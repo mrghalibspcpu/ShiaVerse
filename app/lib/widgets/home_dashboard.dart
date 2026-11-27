@@ -65,13 +65,13 @@ enum HomeSection {
   ),
   hadith(
     'احادیث',
-    'ایک لاکھ کے قریب احادیث',
+    'دس مستند کتبِ احادیث',
     Icons.format_quote_rounded,
     Color(0xFF146B70),
     Color(0xFF073B42),
   ),
   duas(
-    'مفاتیح الجنان و صحیفہ سجادیہ',
+    'مفاتیح الجنان و صحیفہ سجادیہ و علویہ',
     'مکمل',
     Icons.mosque,
     Color(0xFF135C78),

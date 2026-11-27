@@ -681,6 +681,33 @@ class LunarHijri {
     return (next - start).round();
   }
 
+  /// Exact inverse of [dateFor]: returns the UTC civil date on which [hijri]
+  /// occurs for this location and [adjustDays], or `null` if `hijri.day`
+  /// exceeds that lunar month's actual length (e.g. 30th of a 29-day month).
+  DateTime? civilDateFor(HijriDate hijri, {int adjustDays = 0}) {
+    if (hijri.month < 1 || hijri.month > 12 || hijri.day < 1 || hijri.day > 30) {
+      return null;
+    }
+    final monthLen = lengthOfMonth(hijri.year, hijri.month);
+    if (hijri.day > monthLen) return null;
+    final start = civilStartOfMonth(hijri.year, hijri.month);
+    final candidate = DateTime.utc(
+      start.year,
+      start.month,
+      start.day + hijri.day - 1 - adjustDays,
+    );
+    // Verify exact round-trip; if an adjacent lunation cache boundary shifted
+    // by 1 day, step onto the exact matching civil date.
+    if (dateFor(candidate, adjustDays: adjustDays) == hijri) {
+      return candidate;
+    }
+    for (final delta in const <int>[-1, 1, -2, 2]) {
+      final alt = DateTime.utc(candidate.year, candidate.month, candidate.day + delta);
+      if (dateFor(alt, adjustDays: adjustDays) == hijri) return alt;
+    }
+    return candidate;
+  }
+
   /// The evening that opened a month: what the crescent did, and when.
   CrescentObservation? sightingOfMonth(int hijriYear, int hijriMonth) {
     final start = _monthStartOfMonth(hijriYear, hijriMonth);

@@ -98,7 +98,12 @@ class DataInstaller {
     if (!directory.existsSync()) return 0;
     var total = 0;
     for (final entity in directory.listSync()) {
-      if (entity is File && entity.path.endsWith('.db')) total += entity.lengthSync();
+      if (entity is File &&
+          (entity.path.endsWith('.db') ||
+              entity.path.endsWith('.sqlite') ||
+              entity.path.endsWith('.sqlite3'))) {
+        total += entity.lengthSync();
+      }
     }
     return total;
   }
@@ -135,9 +140,10 @@ class DataInstaller {
     // app/APK release can never take the database downloads offline.
     final bases = <String>[
       if (compiled.isNotEmpty) _normalized(compiled),
+      'https://github.com/mrghalibspcpu/ShiaVerse/releases/download/databases-v2/',
       'https://github.com/mrghalibspcpu/Shia-Ai/releases/download/databases-v2/',
       'https://github.com/mrghalibspcpu/Shia-Ai/releases/download/databases-v1/',
-      'https://raw.githubusercontent.com/mrghalibspcpu/Shia-Ai/main/assets/',
+      'https://raw.githubusercontent.com/mrghalibspcpu/ShiaVerse/main/assets/',
     ];
     for (final base in bases) {
       try {

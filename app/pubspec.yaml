@@ -1,9 +1,9 @@
 name: shiaverse
 publish_to: "none"
-description: Offline Shia library — Quran, Mafatih al-Jinan, Nahj al-Balagha, and 14 hadith books.
+description: Offline Shia library — Quran, Mafatih al-Jinan, Sahifa Sajjadiyya & Alawiyya, Nahj al-Balagha, and 10 hadith books.
 # The number after + is Android versionCode. It must stay above the previous
-# 1.28.0 release (10041) so this APK installs as an update without uninstalling.
-version: 1.29.0+10042
+# 1.29.0 release (10042) so this APK installs as an update without uninstalling.
+version: 1.30.0+10043
 
 environment:
   sdk: ">=3.4.0 <4.0.0"
@@ -46,6 +46,8 @@ flutter:
     # `tasneemlogo.png` stayed behind when the ShiaVerse plate replaced them,
     # and every bundled byte is APK size and unpack time.
     - assets/images/shiaverse_icon.png
+    - assets/images/splash_wallpaper.jpg
+    - assets/images/home_light_wallpaper.jpg
     # The HashTech mark: the studio's own artwork, shown in Settings › کریڈٹس
     # and reused unchanged as the APKPure listing icon (docs/store/).
     - assets/images/hashtech.png

@@ -81,7 +81,7 @@ jobs:
           else
             gh release create "$TAG" \
               --title "$TITLE" \
-              --notes "SQLite collections for the Shia Library app (22 databases, gzip-compressed). The app downloads these on first launch, verifies SHA-256 against its bundled manifest, then reads them fully offline."
+              --notes "SQLite collections for the ShiaVerse app (19 databases, gzip-compressed). The app downloads these on first launch, verifies SHA-256 against its bundled manifest, then reads them fully offline."
           fi
           gh release upload "$TAG" dist/*.gz dist/database-manifest.json --clobber
           gh release edit "$TAG" --draft=false

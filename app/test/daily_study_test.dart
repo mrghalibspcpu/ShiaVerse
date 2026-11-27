@@ -169,9 +169,14 @@ void main() {
     test('book-backed tracks map to their distinct library entries', () {
       expect(StudyTrack.mafatih.bookKey, 'mafatih');
       expect(StudyTrack.sahifa.bookKey, 'sahifa');
+      expect(StudyTrack.sahifaAlawiyya.bookKey, 'sahifa_alawiyya');
       expect(StudyTrack.alkafi.bookKey, 'alkafi');
       expect(StudyTrack.encyclopedia.bookKey, 'athna_ashari_encyclopedia');
       expect(StudyTrack.values.map((track) => track.name), isNot(contains('khamenei')));
+      expect(StudyTrack.values.map((track) => track.name), isNot(contains('tahzeeb')));
+      expect(StudyTrack.values.map((track) => track.name), isNot(contains('wasail')));
+      expect(StudyTrack.values.map((track) => track.name), isNot(contains('mezan')));
+      expect(StudyTrack.values.map((track) => track.name), isNot(contains('hikmatprophet')));
     });
 
     test('a plan can carry several books, in order', () {

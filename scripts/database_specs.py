@@ -76,20 +76,16 @@ BALAGHA_INDEXES = (
 )
 
 HADITH_BOOKS: tuple[tuple[str, str, str], ...] = (
-    ("Tahzeeb.db", "تہذیب الاحکام", "Tahdhib al-Ahkam"),
     ("alkafi.db", "الکافی", "Al-Kafi"),
     ("alkhisal.db", "الخصال", "Al-Khisal"),
     ("hakam.db", "غرر الحکم", "Ghurar al-Hikam"),
-    ("hidaya.db", "ہدایۃ العلم", "Hidayat al-Ilm"),
-    ("hikmatprophet.db", "حکمت نامۂ رسول اکرم(ص)", "Hikmat-nama Rasul Akram (s)"),
+    ("hidaya.db", "وسیلۃ الحکم (ہدایۃ العلم)", "Wasilat al-Hikam (Hidayat al-Ilm)"),
     ("imam.db", "حکمت نامہ امام حسین(ع)", "Hikmat-nama Imam Husain (a)"),
     ("kamaledeen.db", "کمال الدین و تمام النعمة", "Kamal al-Din"),
     ("maniakbar.db", "معانی الاخبار", "Ma'ani al-Akhbar"),
     ("manlahyahzur.db", "من لا یحضره الفقیہ", "Man La Yahduruhu al-Faqih"),
-    ("mezan.db", "میزان الحکمة", "Mizan al-Hikmah"),
     ("swab.db", "ثواب الاعمال", "Thawab al-A’mal"),
     ("towheed.db", "کتاب التوحید", "Kitab al-Tawhid"),
-    ("wasail.db", "وسائل الشیعہ", "Wasa'il al-Shi'a"),
 )
 
 EXTRA_DATABASES: tuple[DatabaseSpec, ...] = (
@@ -129,6 +125,12 @@ EXTRA_DATABASES: tuple[DatabaseSpec, ...] = (
         tables={"saheefa_data": {"ID", "oe", "t_id", "t_no", "p_no", "p_format", "p_text"},
                 "saheefa_index": {"ID", "lnk_id", "lnk_text", "lnk_cat"}},
         indexes=("CREATE INDEX IF NOT EXISTS shia_sahifa_container ON saheefa_data(t_id, t_no, p_no, ID)",),
+        record_label="دعا"),
+    DatabaseSpec(name="Sahifa_Alawiyya_Urdu_Honorifics_Final.sqlite", source="sahifa", key="sahifa_alawiyya",
+        title_urdu="صحیفہ علویہ", title_latin="Sahifa Alawiyya", origin="assets",
+        tables={"دعائیں": {"دعا_نمبر", "گروہ_شناخت", "ماخذ_کا_عنوان", "عربی_متن", "اردو_ترجمہ", "ماخذ_کا_رابطہ"},
+                "ماخذ_گروہ": {"گروہ_شناخت", "مطبوعہ_صفحہ_آغاز", "پہلی_دعا_کا_نمبر", "آخری_دعا_کا_نمبر", "دعاؤں_کی_تعداد"}},
+        indexes=('CREATE INDEX IF NOT EXISTS shia_alawiyya_group ON "دعائیں"("گروہ_شناخت", "دعا_نمبر")',),
         record_label="دعا"),
     *(DatabaseSpec(name=f"{key}_urdu_fatawa.sqlite", source="fatwa", key=key,
         title_urdu=title, title_latin=latin, origin="assets",

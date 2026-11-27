@@ -1,15 +1,12 @@
 <resources>
-    <!-- Android 12+ draws its own splash screen from the app icon before the
-         activity's window appears. Without these two items it guesses: the
-         background would come from the theme and the icon would be the small
-         adaptive one on a system-coloured field. Naming both keeps the launch
-         looking exactly like it did on Android 11 and below. -->
+    <!-- Android 12+ launches with the dark navy splash background and emblem,
+         then immediately yields to the full-bleed LaunchTheme window wallpaper. -->
     <style name="LaunchTheme" parent="android:style/Theme.Material.Light.NoActionBar">
         <item name="android:windowBackground">@drawable/launch_background</item>
         <item name="android:windowSplashScreenBackground">@color/ic_launcher_background</item>
         <item name="android:windowSplashScreenAnimatedIcon">@mipmap/ic_launcher_foreground</item>
-        <item name="android:statusBarColor">#FFFFFF</item>
-        <item name="android:navigationBarColor">#FFFFFF</item>
-        <item name="android:windowLightStatusBar">true</item>
+        <item name="android:statusBarColor">#05061A</item>
+        <item name="android:navigationBarColor">#05061A</item>
+        <item name="android:windowLightStatusBar">false</item>
     </style>
 </resources>

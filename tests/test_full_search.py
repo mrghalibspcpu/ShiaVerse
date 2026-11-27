@@ -1,4 +1,4 @@
-"""Replay every page of the actual Dart index queries against all 22 books."""
+"""Replay every page of the actual Dart index queries against all 19 books."""
 import sqlite3
 import sys
 import unittest
@@ -18,20 +18,23 @@ class FullSearchCoverageTests(unittest.TestCase):
             'dua': 'SELECT m.rowid AS record_id, m.M_name AS section_title',
             'balagha': 'WHERE x.Type BETWEEN 1 AND 3\n          ORDER BY record_id',
             'sahifa': 'SELECT d.ID AS record_id, d.t_id * 10000',
+            'sahifa_alawiyya': 'SELECT d."دعا_نمبر" AS record_id',
             'fatwa': 'SELECT q.rowid AS record_id, q.category_id AS section_id',
             'encyclopedia': 'FROM sections AS s JOIN articles AS a ON a.id = s.article_id\n          ORDER BY s.article_id, s.ordinal',
         }
         with collect_databases() as collected:
-            self.assertEqual(len(collected), 22)
+            self.assertEqual(len(collected), 19)
             for spec, path in collected:
                 with self.subTest(book=spec.key), sqlite3.connect(path) as db:
-                    query = extract_query(fragments[spec.source])
+                    frag_key = 'sahifa_alawiyya' if spec.key == 'sahifa_alawiyya' else spec.source
+                    query = extract_query(fragments[frag_key])
                     if spec.source in {'sahifa', 'fatwa'}:
                         query = f'SELECT * FROM ({query}) ORDER BY record_id LIMIT ? OFFSET ?'
                     expected = sum(db.execute(f'SELECT COUNT(*) FROM "{t}"').fetchone()[0]
                                    for t in ({'hadith': ['Parags'], 'quran': ['Quran'], 'dua': ['M_items'],
                                               'balagha': ['balaghatext'],
-                                              'sahifa': ['saheefa_data'], 'fatwa': ['question_answers'],
+                                              'sahifa': ['دعائیں'] if spec.key == 'sahifa_alawiyya' else ['saheefa_data'],
+                                              'fatwa': ['question_answers'],
                                               'encyclopedia': ['sections']}[spec.source]))
                     if spec.source == 'hadith':
                         expected = db.execute("SELECT COUNT(*) FROM Parags WHERE LENGTH(COALESCE(txt,''))>0 OR LENGTH(COALESCE(mean,''))>0").fetchone()[0]
@@ -39,6 +42,8 @@ class FullSearchCoverageTests(unittest.TestCase):
                         expected = db.execute(
                             "SELECT COUNT(*) FROM balaghatext WHERE Type BETWEEN 1 AND 3"
                         ).fetchone()[0]
+                    elif spec.key == 'sahifa_alawiyya':
+                        expected = db.execute('SELECT COUNT(*) FROM "دعائیں"').fetchone()[0]
                     elif spec.source == 'sahifa':
                         # Only the book's 83 supplications are indexed; the
                         # remaining t_id values are site furniture.
@@ -62,6 +67,8 @@ class FullSearchCoverageTests(unittest.TestCase):
                             len(seen),
                             {'khamenei': 428, 'sistani': 1619, 'najafi': 8104}[spec.key],
                         )
+                    elif spec.key == 'sahifa_alawiyya':
+                        self.assertEqual(len(seen), 160)
                     elif spec.source == 'sahifa':
                         # The refreshed Drive edition contains just the 83
                         # reader sections, with Arabic and Urdu rows.

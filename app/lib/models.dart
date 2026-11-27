@@ -7,7 +7,7 @@ extension CorpusSourceX on CorpusSource {
         CorpusSource.quran => 'قرآنِ کریم',
         CorpusSource.dua => 'دعائیں و اعمال',
         CorpusSource.balagha => 'نہج البلاغہ',
-        CorpusSource.sahifa => 'صحیفہ سجادیہ',
+        CorpusSource.sahifa => 'صحیفہ سجادیہ و علویہ',
         CorpusSource.fatwa => 'فتاویٰ',
         CorpusSource.encyclopedia => 'نئی کتابیں',
       };
@@ -41,18 +41,20 @@ List<BookDefinition> get fatawaBooks => BookDefinition.all
     .where((book) => book.source == CorpusSource.fatwa && book.key != 'khamenei')
     .toList();
 
-/// Mafatih al-Jinan and Sahifa Sajjadiyya are offered as ONE library entry
-/// too: the reader opens the dua collection and picks the book there, the
-/// same way the fatawa tile offers the two marjas.
+/// Mafatih al-Jinan, Sahifa Sajjadiyya, and Sahifa Alawiyya are offered as ONE
+/// library entry: the reader opens the dua collection and picks the book there,
+/// the same way the fatawa tile offers the marjas.
 const String kDuaCollectionKey = 'dua_collection';
-const String kDuaCollectionTitle = 'مفاتیح الجنان و صحیفہ سجادیہ';
+const String kDuaCollectionTitle = 'مفاتیح الجنان و صحیفہ سجادیہ و علویہ';
 const String kDuaCollectionSubtitle = 'دعائیں، زیارات، اعمال اور مناجات';
 const String kDuaCollectionHint = 'کتاب منتخب کریں';
 
-/// The two books behind the combined dua tile: Mafatih first, then Sahifa.
+/// The three books behind the combined dua tile: Mafatih, Sahifa Sajjadiyya,
+/// and Sahifa Alawiyya.
 List<BookDefinition> get duaCollectionBooks => [
-      BookDefinition.bookFor(CorpusSource.dua)!,
-      BookDefinition.bookFor(CorpusSource.sahifa)!,
+      BookDefinition.byKey('mafatih')!,
+      BookDefinition.byKey('sahifa')!,
+      BookDefinition.byKey('sahifa_alawiyya')!,
     ];
 
 /// Collections with a card of their own on the home row. The fatawa and the
@@ -103,7 +105,10 @@ class BookDefinition {
   static const List<BookDefinition> all = [
     BookDefinition(key: 'sahifa', fileName: 'Sahifa_Sajjadiyya_full_runtime.sqlite3',
       titleUrdu: 'صحیفہ سجادیہ', titleLatin: 'Sahifa Sajjadiyya',
-      description: 'دعائیں، مناجات، ترجمہ اور حواشی', source: CorpusSource.sahifa, recordLabel: 'دعا'),
+      description: 'امام زین العابدین (ع) کی دعائیں، مناجات اور ترجمہ', source: CorpusSource.sahifa, recordLabel: 'دعا'),
+    BookDefinition(key: 'sahifa_alawiyya', fileName: 'Sahifa_Alawiyya_Urdu_Honorifics_Final.sqlite',
+      titleUrdu: 'صحیفہ علویہ', titleLatin: 'Sahifa Alawiyya',
+      description: 'امیرالمومنین حضرت علی (ع) سے منسوب ۱۶۰ دعائیں اور مناجات', source: CorpusSource.sahifa, recordLabel: 'دعا'),
     BookDefinition(key: 'khamenei', fileName: 'khamenei_urdu_fatawa.sqlite',
       titleUrdu: 'فتاویٰ — آیت اللہ خامنہ ای', titleLatin: 'Khamenei Urdu Fatawa',
       description: 'اردو سوال و جواب، اصل ماخذ کے ساتھ', source: CorpusSource.fatwa, recordLabel: 'مسئلہ',
@@ -122,20 +127,16 @@ class BookDefinition {
       description: 'اردو سوال و جواب، اصل ماخذ کے ساتھ', source: CorpusSource.fatwa, recordLabel: 'مسئلہ',
       imageAsset: 'assets/images/marja_najafi.png',
       marjaName: 'آیت اللہ العظمیٰ شیخ حافظ بشیر حسین نجفی'),
-    BookDefinition(key: 'tahzeeb', fileName: 'Tahzeeb.db', titleUrdu: 'تہذیب الاحکام', titleLatin: 'Tahdhib al-Ahkam'),
     BookDefinition(key: 'alkafi', fileName: 'alkafi.db', titleUrdu: 'الکافی', titleLatin: 'Al-Kafi'),
     BookDefinition(key: 'alkhisal', fileName: 'alkhisal.db', titleUrdu: 'الخصال', titleLatin: 'Al-Khisal'),
     BookDefinition(key: 'hakam', fileName: 'hakam.db', titleUrdu: 'غرر الحکم', titleLatin: 'Ghurar al-Hikam'),
-    BookDefinition(key: 'hidaya', fileName: 'hidaya.db', titleUrdu: 'ہدایۃ العلم', titleLatin: 'Hidayat al-Ilm'),
-    BookDefinition(key: 'hikmatprophet', fileName: 'hikmatprophet.db', titleUrdu: 'حکمت نامۂ رسول اکرم(ص)', titleLatin: 'Hikmat-nama Rasul Akram (s)'),
+    BookDefinition(key: 'hidaya', fileName: 'hidaya.db', titleUrdu: 'وسیلۃ الحکم (ہدایۃ العلم)', titleLatin: 'Wasilat al-Hikam (Hidayat al-Ilm)'),
     BookDefinition(key: 'imam', fileName: 'imam.db', titleUrdu: 'حکمت نامہ امام حسین(ع)', titleLatin: 'Hikmat-nama Imam Husain (a)'),
     BookDefinition(key: 'kamaledeen', fileName: 'kamaledeen.db', titleUrdu: 'کمال الدین و تمام النعمة', titleLatin: 'Kamal al-Din'),
     BookDefinition(key: 'maniakbar', fileName: 'maniakbar.db', titleUrdu: 'معانی الاخبار', titleLatin: "Ma'ani al-Akhbar"),
     BookDefinition(key: 'manlahyahzur', fileName: 'manlahyahzur.db', titleUrdu: 'من لا یحضره الفقیہ', titleLatin: 'Man La Yahduruhu al-Faqih'),
-    BookDefinition(key: 'mezan', fileName: 'mezan.db', titleUrdu: 'میزان الحکمة', titleLatin: 'Mizan al-Hikmah'),
     BookDefinition(key: 'swab', fileName: 'swab.db', titleUrdu: 'ثواب الاعمال', titleLatin: 'Thawab al-A’mal'),
     BookDefinition(key: 'towheed', fileName: 'towheed.db', titleUrdu: 'کتاب التوحید', titleLatin: 'Kitab al-Tawhid'),
-    BookDefinition(key: 'wasail', fileName: 'wasail.db', titleUrdu: 'وسائل الشیعہ', titleLatin: "Wasa'il al-Shi'a"),
     BookDefinition(
       key: 'quran',
       fileName: 'quran.db',
@@ -497,7 +498,7 @@ const List<MomentPassage> kFallbackMoments = <MomentPassage>[
     kind: 'حدیث',
     arabic: 'قَالَ عَلِيٌّ عَلَيْهِ السَّلَامُ: الْعِلْمُ وِرَاثَةٌ كَرِيمَةٌ',
     urdu: 'علم ایک باعزت وراثت ہے۔',
-    source: 'میزان الحکمہ',
+    source: 'غرر الحکم',
   ),
   MomentPassage(
     kind: 'آیت',
@@ -509,7 +510,7 @@ const List<MomentPassage> kFallbackMoments = <MomentPassage>[
     kind: 'حدیث',
     arabic: 'قَالَ رَسُولُ اللَّهِ ﷺ: أَفْضَلُ الْعِبَادَةِ أَخْفَاهَا',
     urdu: 'بہترین عبادت وہ ہے جو چھپ کر کی جائے۔',
-    source: 'میزان الحکمہ',
+    source: 'الکافی',
   ),
 ];
 

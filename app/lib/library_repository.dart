@@ -23,9 +23,17 @@ export 'text_utils.dart'
         relevanceScore;
 
 /// Bumped whenever the text stored in the index changes for the same books, so
-/// readers who already hold an index rebuild it. 9: the bundled Mafatih and
-/// Sahifa replacements change the indexed source text.
-const int _searchIndexVersion = 9;
+/// readers who already hold an index rebuild it. 10: the 1.30 Urdu corpus
+/// refresh replaces the 10 hadith translations and adds Sahifa Alawiyya.
+const int _searchIndexVersion = 10;
+
+/// Retired hadith databases removed in 1.30; deleted cleanly on upgrade.
+const List<String> _retiredDatabaseFiles = <String>[
+  'Tahzeeb.db',
+  'hikmatprophet.db',
+  'mezan.db',
+  'wasail.db',
+];
 
 /// Updated read-only books shipped in this APK. A matching digest makes the
 /// migration idempotent; a stale installed copy is replaced atomically on the
@@ -34,6 +42,8 @@ const Map<String, String> _bundledDatabaseUpdates = <String, String>{
   'mafatihdb-v4.db': 'cc01c16db7652df6b00997c1ab7eebba354733c75334a2fc8d795702afc4c182',
   'Sahifa_Sajjadiyya_full_runtime.sqlite3':
       'ad65542a5d430be203500464355d67148b774632cd12b8918808998724fc4f05',
+  'Sahifa_Alawiyya_Urdu_Honorifics_Final.sqlite':
+      '5cfbeaad21aa383d398e3ef48bd2fa02f0706c59202e0bc8199442a79d164935',
 };
 const int _indexPageSize = 400;
 
@@ -155,15 +165,28 @@ class LibraryRepository {
     // reads.
     unawaited(_rememberWidgetDatabaseDir());
 
+    final prefs = await SharedPreferences.getInstance();
+    final manifestSpecs = await _loadManifestSpecs();
+    await _removeRetiredDatabases();
+
+    final newlyInstalled = <BookDefinition>[];
     for (var i = 0; i < BookDefinition.all.length; i++) {
       final book = BookDefinition.all[i];
-      final installed = await _ensureLocalCopy(book, i, onProgress);
-      if (installed) _installed.add(book.key);
+      final spec = manifestSpecs[book.fileName];
+      final result = await _ensureLocalCopy(book, i, onProgress, prefs: prefs, spec: spec);
+      if (result.installed) {
+        _installed.add(book.key);
+        if (result.needsIndexes) newlyInstalled.add(book);
+      }
     }
 
-    for (final book in installedBooks.toList()) {
+    for (final book in newlyInstalled) {
       try {
         await _ensureReaderIndexes(book);
+        final file = File(p.join(_databaseDirectory, book.fileName));
+        if (await file.exists()) {
+          await prefs.setInt('db_idx_stamp_${book.fileName}', await file.length());
+        }
       } catch (_) {
         _installed.remove(book.key);
       }
@@ -236,29 +259,77 @@ class LibraryRepository {
     }
   }
 
+  Future<Map<String, ({int sizeBytes, String sha256})>> _loadManifestSpecs() async {
+    try {
+      final raw = await rootBundle.loadString('assets/database-manifest.json');
+      final decoded = jsonDecode(raw);
+      if (decoded is! Map) return const {};
+      final list = decoded['databases'];
+      if (list is! List) return const {};
+      final out = <String, ({int sizeBytes, String sha256})>{};
+      for (final item in list) {
+        if (item is! Map) continue;
+        final name = (item['name'] ?? '').toString();
+        final size = _asInt(item['size_bytes']) ?? 0;
+        final sha = (item['sha256'] ?? '').toString().toLowerCase();
+        if (name.isNotEmpty) out[name] = (sizeBytes: size, sha256: sha);
+      }
+      return out;
+    } catch (_) {
+      return const {};
+    }
+  }
+
+  Future<void> _removeRetiredDatabases() async {
+    for (final fileName in _retiredDatabaseFiles) {
+      final file = File(p.join(_databaseDirectory, fileName));
+      await _removeDatabaseSidecars(file);
+      if (await file.exists()) {
+        try {
+          await file.delete();
+        } on FileSystemException {
+          // Ignore locked/transient errors.
+        }
+      }
+    }
+  }
+
   /// Copies a bundled asset into app storage, or upgrades a stale copy when
   /// this APK carries a newer read-only database.
-  ///
-  /// The two replacement books are hash-pinned and atomically swapped before
-  /// any reader opens them. Other books keep the existing install-once path.
-  /// A missing asset is not an error: the download manager can fetch the book.
-  Future<bool> _ensureLocalCopy(
+  Future<({bool installed, bool needsIndexes})> _ensureLocalCopy(
     BookDefinition book,
     int index,
-    void Function(double, String) onProgress,
-  ) async {
+    void Function(double, String) onProgress, {
+    required SharedPreferences prefs,
+    ({int sizeBytes, String sha256})? spec,
+  }) async {
     final output = File(p.join(_databaseDirectory, book.fileName));
     final expectedUpdateHash = _bundledDatabaseUpdates[book.fileName];
+    final hashKey = 'db_verified_${book.fileName}';
+    final idxKey = 'db_idx_stamp_${book.fileName}';
 
     if (expectedUpdateHash != null) {
+      if (await output.exists()) {
+        final diskLen = await output.length();
+        final cachedStamp = prefs.getString(hashKey);
+        if (diskLen > 0 && cachedStamp == '$diskLen:$expectedUpdateHash') {
+          final indexedLen = prefs.getInt(idxKey);
+          return (installed: true, needsIndexes: indexedLen != diskLen);
+        }
+      }
+
       ByteData data;
       try {
         data = await rootBundle.load('assets/databases/${book.fileName}');
       } on FlutterError catch (_) {
-        return await output.exists() && await output.length() > 0;
+        final exists = await output.exists() && await output.length() > 0;
+        return (installed: exists, needsIndexes: exists);
       }
       final bytes = data.buffer.asUint8List(data.offsetInBytes, data.lengthInBytes);
-      if (bytes.isEmpty) return await output.exists() && await output.length() > 0;
+      if (bytes.isEmpty) {
+        final exists = await output.exists() && await output.length() > 0;
+        return (installed: exists, needsIndexes: exists);
+      }
       final bundledHash = sha256.convert(bytes).toString();
       if (bundledHash != expectedUpdateHash) {
         throw StateError('Bundled database checksum does not match ${book.fileName}');
@@ -267,31 +338,65 @@ class LibraryRepository {
         final currentHash = (await sha256.bind(output.openRead()).first).toString();
         if (currentHash == expectedUpdateHash) {
           await _removeDatabaseSidecars(output);
-          return true;
+          final diskLen = await output.length();
+          await prefs.setString(hashKey, '$diskLen:$expectedUpdateHash');
+          return (installed: true, needsIndexes: prefs.getInt(idxKey) != diskLen);
         }
       }
-      onProgress(
-        index / BookDefinition.all.length * 0.2,
-        'نیا ڈیٹا نصب ہو رہا ہے — ${book.titleUrdu}',
-      );
+      onProgress(index / BookDefinition.all.length * 0.2, book.titleUrdu);
       await _replaceDatabaseAtomically(output, bytes);
-      return true;
+      final diskLen = await output.length();
+      await prefs.setString(hashKey, '$diskLen:$expectedUpdateHash');
+      return (installed: true, needsIndexes: true);
     }
 
-    if (await output.exists() && await output.length() > 0) return true;
-    onProgress(
-      index / BookDefinition.all.length * 0.2,
-      'کتب تیار ہو رہی ہیں — ${book.titleUrdu}',
-    );
+    if (await output.exists()) {
+      final diskLen = await output.length();
+      if (diskLen > 0) {
+        // Note: _ensureReaderIndexes may grow a downloaded hadith DB slightly
+        // if indexes weren't pre-built, UNLESS we check either exact manifest
+        // size OR cached verified stamp! Wait: for the 10 new Hadith DBs,
+        // before _ensureReaderIndexes runs on a freshly downloaded DB, its size
+        // equals spec.sizeBytes, and once _ensureReaderIndexes runs we record
+        // `db_idx_stamp_<file>` AND `db_verified_<file>`!
+        final expectedSha = spec?.sha256 ?? '';
+        final verifiedSha = prefs.getString(hashKey);
+        if (expectedSha.isEmpty || verifiedSha == expectedSha) {
+          return (installed: true, needsIndexes: prefs.getInt(idxKey) != diskLen);
+        }
+        // First time seeing this file with the new manifest: check raw SHA-256
+        // if size matches, otherwise it's a pre-1.30 stale Hadith DB!
+        if (spec != null && spec.sizeBytes > 0 && diskLen == spec.sizeBytes) {
+          final actualSha = (await sha256.bind(output.openRead()).first).toString().toLowerCase();
+          if (actualSha == expectedSha) {
+            await prefs.setString(hashKey, expectedSha);
+            return (installed: true, needsIndexes: true);
+          }
+        }
+        // Stale pre-1.30 file (e.g. old alkafi.db or old hidaya.db): remove it
+        // so either bundled assets or DataInstaller installs the new edition.
+        await _removeDatabaseSidecars(output);
+        try {
+          await output.delete();
+        } on FileSystemException {
+          // Ignore
+        }
+      }
+    }
+
+    onProgress(index / BookDefinition.all.length * 0.2, book.titleUrdu);
     try {
       final data = await rootBundle.load('assets/databases/${book.fileName}');
       final bytes = data.buffer.asUint8List(data.offsetInBytes, data.lengthInBytes);
-      if (bytes.isEmpty) return false;
+      if (bytes.isEmpty) return (installed: false, needsIndexes: false);
       await output.writeAsBytes(bytes, flush: true);
-      return true;
+      if (spec != null && spec.sha256.isNotEmpty) {
+        await prefs.setString(hashKey, spec.sha256);
+      }
+      return (installed: true, needsIndexes: true);
     } on FlutterError catch (_) {
       // Not bundled with this APK; the download manager can fetch it later.
-      return false;
+      return (installed: false, needsIndexes: false);
     }
   }
 
@@ -355,13 +460,20 @@ class LibraryRepository {
       await initialize(onProgress: onProgress ?? (_, __) {});
       return;
     }
+    final prefs = await SharedPreferences.getInstance();
+    final manifestSpecs = await _loadManifestSpecs();
     for (final book in BookDefinition.all) {
       if (_installed.contains(book.key)) continue;
       final file = File(p.join(_databaseDirectory, book.fileName));
       if (await file.exists() && await file.length() > 0) {
+        final spec = manifestSpecs[book.fileName];
+        if (spec != null && spec.sha256.isNotEmpty) {
+          await prefs.setString('db_verified_${book.fileName}', spec.sha256);
+        }
         _installed.add(book.key);
         try {
           await _ensureReaderIndexes(book);
+          await prefs.setInt('db_idx_stamp_${book.fileName}', await file.length());
         } catch (_) {
           _installed.remove(book.key);
         }
@@ -804,9 +916,13 @@ class LibraryRepository {
     try {
       database = await openDatabase(path);
       final statements = switch (book.source) {
-        CorpusSource.sahifa => const [
-            'CREATE INDEX IF NOT EXISTS shia_sahifa_container ON saheefa_data(t_id, t_no, p_no, ID)',
-          ],
+        CorpusSource.sahifa => book.key == 'sahifa_alawiyya'
+            ? const [
+                'CREATE INDEX IF NOT EXISTS shia_alawiyya_group ON "دعائیں"("گروہ_شناخت", "دعا_نمبر")',
+              ]
+            : const [
+                'CREATE INDEX IF NOT EXISTS shia_sahifa_container ON saheefa_data(t_id, t_no, p_no, ID)',
+              ],
         CorpusSource.fatwa => const [
             'CREATE INDEX IF NOT EXISTS shia_fatwa_category ON question_answers(category_id)',
           ],
@@ -938,8 +1054,19 @@ class LibraryRepository {
   /// furniture: the Imam's biography, "ہمارے بارے میں", lecture videos, and
   /// quiz pages. Those were never part of the book and used to appear as
   /// numbered entries 84 and up.
-  String _extraQuery(BookDefinition book) => book.source == CorpusSource.sahifa
-      ? """
+  String _extraQuery(BookDefinition book) {
+    if (book.key == 'sahifa_alawiyya') {
+      return '''
+        SELECT d."دعا_نمبر" AS record_id, d."دعا_نمبر" AS section_id,
+          d."عربی_متن" AS arabic, d."اردو_ترجمہ" AS urdu,
+          d."ماخذ_کا_عنوان" AS section_title, 'صحیفہ علویہ' AS chapter_title,
+          d."ماخذ_کا_رابطہ" AS source_url, 'دعا ' || d."دعا_نمبر" AS locator,
+          d."گروہ_شناخت" AS container_type, d."دعا_نمبر" AS container_id
+        FROM "دعائیں" AS d
+      ''';
+    }
+    if (book.source == CorpusSource.sahifa) {
+      return """
         SELECT d.ID AS record_id, d.t_id * 10000 + d.t_no AS section_id,
           CASE WHEN d.oe = 'a' THEN d.p_text ELSE '' END AS arabic,
           CASE WHEN d.oe != 'a' THEN d.p_text ELSE '' END AS urdu,
@@ -949,8 +1076,9 @@ class LibraryRepository {
           d.t_id AS container_type, d.t_no AS container_id, d.p_format AS format
         FROM saheefa_data d
         WHERE d.t_id IN (1, 2, 3, 4)
-      """
-      : """
+      """;
+    }
+    return """
         SELECT q.rowid AS record_id, q.category_id AS section_id, '' AS arabic,
           q.question_ur || char(10) || char(10) || q.answer_ur AS urdu,
           c.category_title_ur AS section_title, q.collection_title_ur AS chapter_title,
@@ -959,6 +1087,7 @@ class LibraryRepository {
                ELSE c.category_title_ur END AS locator
         FROM question_answers q JOIN categories c ON c.category_id = q.category_id
       """;
+  }
 
   // ---------------------------------------------------------------- hadith
 
@@ -1068,7 +1197,8 @@ class LibraryRepository {
     }
     if (book.source == CorpusSource.sahifa || book.source == CorpusSource.fatwa) {
       final rows = await db.rawQuery('SELECT * FROM (${_extraQuery(book)}) WHERE section_id = ? ORDER BY record_id', [sectionId]);
-      return rows.map(Passage.fromMap).toList();
+      final passages = rows.map(Passage.fromMap).toList();
+      return book.key == 'sahifa_alawiyya' ? _splitAlawiyyaPassages(passages) : passages;
     }
     final rows = await db.rawQuery('''
       SELECT COALESCE(NULLIF(p.ID, ''), -p.rowid) AS record_id, p.txt AS arabic, p.Secid AS section_id,
@@ -1082,6 +1212,49 @@ class LibraryRepository {
       ORDER BY p.rowid
     ''', [sectionId]);
     return rows.map(Passage.fromMap).toList();
+  }
+
+  /// Splits long Sahifa Alawiyya supplications into aligned Arabic+Urdu cards
+  /// whenever the Arabic and Urdu paragraphs match 1-to-1, keeping card 0's
+  /// `recordId` equal to `دعا_نمبر` so search, bookmarks, and notes resolve.
+  List<Passage> _splitAlawiyyaPassages(List<Passage> passages) {
+    final expanded = <Passage>[];
+    for (final base in passages) {
+      final arLines = base.arabic
+          .split('\n')
+          .map((line) => line.trim())
+          .where((line) => line.isNotEmpty)
+          .toList();
+      final urLines = base.urdu
+          .split('\n')
+          .map((line) => line.trim())
+          .where((line) => line.isNotEmpty)
+          .toList();
+      if (arLines.length <= 1 || arLines.length != urLines.length) {
+        expanded.add(base);
+        continue;
+      }
+      // Group short rhythmic invocations into comfortable 4-line reader cards.
+      const groupSize = 4;
+      var cardIndex = 0;
+      for (var i = 0; i < arLines.length; i += groupSize) {
+        final end = math.min(i + groupSize, arLines.length);
+        expanded.add(Passage(
+          recordId: cardIndex == 0 ? base.recordId : base.recordId * 10000 + cardIndex,
+          sectionId: base.sectionId,
+          arabic: arLines.sublist(i, end).join('\n'),
+          urdu: urLines.sublist(i, end).join('\n'),
+          sectionTitle: base.sectionTitle,
+          chapterTitle: base.chapterTitle,
+          locator: cardIndex == 0 ? base.locator : '${base.locator} • قطعہ ${cardIndex + 1}',
+          containerType: base.containerType,
+          containerId: base.containerId,
+          sourceUrl: cardIndex == 0 ? base.sourceUrl : '',
+        ));
+        cardIndex++;
+      }
+    }
+    return expanded;
   }
 
   /// Every section of one encyclopaedia article, in reading order, closed by
@@ -1678,11 +1851,9 @@ class LibraryRepository {
     final lines = <MomentPassage>[];
     final quran = BookDefinition.bookFor(CorpusSource.quran);
     final ghurar = BookDefinition.byKey('hakam');
-    final mizan = BookDefinition.byKey('mezan');
     final hidaya = BookDefinition.byKey('hidaya');
     if (quran != null && isInstalled(quran)) lines.addAll(await _quranMoments(quran, limit));
     if (ghurar != null && isInstalled(ghurar)) lines.addAll(await _hadithMoments(ghurar, limit));
-    if (mizan != null && isInstalled(mizan)) lines.addAll(await _hadithMoments(mizan, limit));
     if (hidaya != null && isInstalled(hidaya)) lines.addAll(await _hidayaMoments(hidaya, limit));
     lines.shuffle(random ?? math.Random());
     if (lines.isNotEmpty) unawaited(_publishWidgetMoments(lines));
@@ -1894,8 +2065,18 @@ class LibraryRepository {
     switch (book.source) {
       case CorpusSource.sahifa:
       case CorpusSource.fatwa:
-        final rows = await db.rawQuery('SELECT * FROM (${_extraQuery(book)}) WHERE record_id = ?', [recordId]);
-        return rows.isEmpty ? null : Passage.fromMap(rows.first);
+        final lookupId = book.key == 'sahifa_alawiyya' && recordId > 10000
+            ? recordId ~/ 10000
+            : recordId;
+        final rows = await db.rawQuery('SELECT * FROM (${_extraQuery(book)}) WHERE record_id = ?', [lookupId]);
+        if (rows.isEmpty) return null;
+        if (book.key == 'sahifa_alawiyya' && recordId > 10000) {
+          final cards = _splitAlawiyyaPassages([Passage.fromMap(rows.first)]);
+          for (final card in cards) {
+            if (card.recordId == recordId) return card;
+          }
+        }
+        return Passage.fromMap(rows.first);
       case CorpusSource.encyclopedia:
         final rows = await db.rawQuery('''
           SELECT s.id AS record_id, s.article_id AS section_id,

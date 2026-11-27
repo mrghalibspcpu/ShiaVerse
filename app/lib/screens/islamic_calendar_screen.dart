@@ -54,6 +54,14 @@ class IslamicCalendarScreen extends StatelessWidget {
             children: <Widget>[
               _CalendarHero(today: today, palette: palette),
               const SizedBox(height: 12),
+              _Calendar3DView(
+                rows: rows,
+                today: civilToday,
+                calendar: calendar,
+                adjustment: adjustment,
+                palette: palette,
+              ),
+              const SizedBox(height: 12),
               _GregorianDateConverter(
                 calendar: calendar,
                 adjustment: adjustment,
@@ -87,14 +95,6 @@ class IslamicCalendarScreen extends StatelessWidget {
                     ),
                   ],
                 ),
-              ),
-              const SizedBox(height: 12),
-              _Calendar3DView(
-                rows: rows,
-                today: civilToday,
-                calendar: calendar,
-                adjustment: adjustment,
-                palette: palette,
               ),
               const SizedBox(height: 10),
               GlassPanel(
@@ -197,9 +197,10 @@ class _CalendarHero extends StatelessWidget {
   }
 }
 
-/// A compact, editable Gregorian → Hijri converter. The date picker is a
-/// convenience, while the text field also accepts dates directly as
-/// DD/MM/YYYY or YYYY-MM-DD (1900–2100, the validated astronomy range).
+enum _ConverterDirection { gregorianToHijri, hijriToGregorian }
+
+/// A bidirectional Gregorian ↔ Hijri converter driven by the exact local
+/// astronomical crescent model (`LunarHijri.dateFor` / `LunarHijri.civilDateFor`).
 class _GregorianDateConverter extends StatefulWidget {
   const _GregorianDateConverter({
     required this.calendar,
@@ -219,8 +220,12 @@ class _GregorianDateConverter extends StatefulWidget {
 
 class _GregorianDateConverterState extends State<_GregorianDateConverter> {
   late final TextEditingController _input;
+  late final TextEditingController _hijriDayCtrl;
+  late final TextEditingController _hijriYearCtrl;
+  _ConverterDirection _direction = _ConverterDirection.gregorianToHijri;
   late DateTime _gregorian;
   late HijriDate _hijri;
+  int _selectedHijriMonth = 1;
   String? _error;
 
   @override
@@ -228,21 +233,41 @@ class _GregorianDateConverterState extends State<_GregorianDateConverter> {
     super.initState();
     _gregorian = DateTime.utc(widget.initialDate.year, widget.initialDate.month, widget.initialDate.day);
     _hijri = widget.calendar.dateFor(_gregorian, adjustDays: widget.adjustment);
+    _selectedHijriMonth = _hijri.month;
     _input = TextEditingController(text: _dateInput(_gregorian));
+    _hijriDayCtrl = TextEditingController(text: '${_hijri.day}');
+    _hijriYearCtrl = TextEditingController(text: '${_hijri.year}');
   }
 
   @override
   void didUpdateWidget(_GregorianDateConverter oldWidget) {
     super.didUpdateWidget(oldWidget);
     if (oldWidget.calendar != widget.calendar || oldWidget.adjustment != widget.adjustment) {
-      _hijri = widget.calendar.dateFor(_gregorian, adjustDays: widget.adjustment);
+      if (_direction == _ConverterDirection.gregorianToHijri) {
+        _hijri = widget.calendar.dateFor(_gregorian, adjustDays: widget.adjustment);
+        _syncHijriFields();
+      } else {
+        final resolved = widget.calendar.civilDateFor(_hijri, adjustDays: widget.adjustment);
+        if (resolved != null) {
+          _gregorian = resolved;
+          _input.text = _dateInput(_gregorian);
+        }
+      }
     }
   }
 
   @override
   void dispose() {
     _input.dispose();
+    _hijriDayCtrl.dispose();
+    _hijriYearCtrl.dispose();
     super.dispose();
+  }
+
+  void _syncHijriFields() {
+    _selectedHijriMonth = _hijri.month;
+    _hijriDayCtrl.text = '${_hijri.day}';
+    _hijriYearCtrl.text = '${_hijri.year}';
   }
 
   String _dateInput(DateTime date) =>
@@ -265,7 +290,7 @@ class _GregorianDateConverterState extends State<_GregorianDateConverter> {
     return date;
   }
 
-  void _convert([DateTime? date]) {
+  void _convertGregorian([DateTime? date]) {
     final parsed = date ?? _parseDate(_input.text);
     if (parsed == null) {
       setState(() => _error = 'تاریخ DD/MM/YYYY یا YYYY-MM-DD میں درج کریں (سال 1900 تا 2100)۔');
@@ -275,8 +300,59 @@ class _GregorianDateConverterState extends State<_GregorianDateConverter> {
       _gregorian = DateTime.utc(parsed.year, parsed.month, parsed.day);
       _hijri = widget.calendar.dateFor(_gregorian, adjustDays: widget.adjustment);
       _input.text = _dateInput(_gregorian);
+      _syncHijriFields();
       _error = null;
     });
+  }
+
+  void _convertHijri() {
+    final day = int.tryParse(displayDigits(_hijriDayCtrl.text.trim()));
+    final year = int.tryParse(displayDigits(_hijriYearCtrl.text.trim()));
+    if (year == null || year < 1318 || year > 1524) {
+      setState(() => _error = 'ہجری سال 1318 تا 1524 کے درمیان درج کریں۔');
+      return;
+    }
+    if (day == null || day < 1 || day > 30) {
+      setState(() => _error = 'ہجری دن 1 تا 30 کے درمیان درج کریں۔');
+      return;
+    }
+    final monthLen = widget.calendar.lengthOfMonth(year, _selectedHijriMonth);
+    if (day > monthLen) {
+      final monthName = kHijriMonthsUrdu[_selectedHijriMonth - 1];
+      setState(() => _error = '$monthName $yearھ اس شہر کے حساب سے $monthLen دن کا ہے۔');
+      return;
+    }
+    final target = HijriDate(year, _selectedHijriMonth, day);
+    final civil = widget.calendar.civilDateFor(target, adjustDays: widget.adjustment);
+    if (civil == null) {
+      setState(() => _error = 'درج شدہ ہجری تاریخ درست نہیں۔');
+      return;
+    }
+    setState(() {
+      _hijri = target;
+      _gregorian = civil;
+      _input.text = _dateInput(_gregorian);
+      _syncHijriFields();
+      _error = null;
+    });
+  }
+
+  void _convertToday() {
+    setState(() {
+      _gregorian = DateTime.utc(widget.initialDate.year, widget.initialDate.month, widget.initialDate.day);
+      _hijri = widget.calendar.dateFor(_gregorian, adjustDays: widget.adjustment);
+      _input.text = _dateInput(_gregorian);
+      _syncHijriFields();
+      _error = null;
+    });
+  }
+
+  void _runConvert() {
+    if (_direction == _ConverterDirection.gregorianToHijri) {
+      _convertGregorian();
+    } else {
+      _convertHijri();
+    }
   }
 
   Future<void> _pickDate() async {
@@ -287,55 +363,177 @@ class _GregorianDateConverterState extends State<_GregorianDateConverter> {
       lastDate: DateTime(2100, 12, 31),
       helpText: 'عیسوی تاریخ منتخب کریں',
     );
-    if (selected != null) _convert(selected);
+    if (selected != null) _convertGregorian(selected);
   }
 
   @override
   Widget build(BuildContext context) {
     final palette = widget.palette;
+    final isGregToHijri = _direction == _ConverterDirection.gregorianToHijri;
     final events = kShiaIslamicEvents
         .where((event) => event.month == _hijri.month && event.day == _hijri.day)
         .toList(growable: false);
     return GlassPanel(
+      key: const ValueKey<String>('date-converter-panel'),
       radius: 20,
-      padding: const EdgeInsets.all(13),
+      padding: const EdgeInsets.all(14),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.stretch,
         children: <Widget>[
-          const GlassSectionHeader(title: 'عیسوی سے ہجری تاریخ'),
-          const SizedBox(height: 5),
-          Text(
-            'کوئی بھی تاریخ لکھیں یا کیلنڈر سے چنیں۔',
-            style: TextStyle(fontSize: 12.5, height: 1.4, color: palette.muted),
-          ),
+          const GlassSectionHeader(title: 'تاریخ تبدیل کار (عیسوی ⇄ ہجری)'),
           const SizedBox(height: 8),
-          TextField(
-            key: const ValueKey<String>('gregorian-date-input'),
-            controller: _input,
-            keyboardType: TextInputType.datetime,
-            textDirection: TextDirection.ltr,
-            textAlign: TextAlign.center,
-            decoration: InputDecoration(
-              labelText: 'عیسوی تاریخ',
-              hintText: '18/10/2026',
-              suffixIcon: IconButton(
-                tooltip: 'کیلنڈر سے تاریخ منتخب کریں',
-                onPressed: _pickDate,
-                icon: const Icon(Icons.calendar_month_outlined),
-              ),
+          Container(
+            padding: const EdgeInsets.all(4),
+            decoration: BoxDecoration(
+              color: palette.solid.withValues(alpha: 0.55),
+              borderRadius: BorderRadius.circular(14),
+              border: Border.all(color: palette.border),
             ),
-            onSubmitted: (_) => _convert(),
+            child: Row(
+              children: <Widget>[
+                Expanded(
+                  child: _ModeTabButton(
+                    key: const ValueKey<String>('converter-mode-greg-to-hijri'),
+                    label: 'عیسوی ← ہجری',
+                    selected: isGregToHijri,
+                    palette: palette,
+                    onTap: () => setState(() {
+                      _direction = _ConverterDirection.gregorianToHijri;
+                      _error = null;
+                    }),
+                  ),
+                ),
+                const SizedBox(width: 6),
+                Expanded(
+                  child: _ModeTabButton(
+                    key: const ValueKey<String>('converter-mode-hijri-to-greg'),
+                    label: 'ہجری ← عیسوی',
+                    selected: !isGregToHijri,
+                    palette: palette,
+                    onTap: () => setState(() {
+                      _direction = _ConverterDirection.hijriToGregorian;
+                      _syncHijriFields();
+                      _error = null;
+                    }),
+                  ),
+                ),
+              ],
+            ),
           ),
-          if (_error != null) ...<Widget>[
-            const SizedBox(height: 5),
-            Text(_error!, style: TextStyle(fontSize: 12.5, color: palette.gold)),
+          const SizedBox(height: 10),
+          if (isGregToHijri) ...<Widget>[
+            Text(
+              'عیسوی تاریخ لکھیں یا کیلنڈر سے چنیں:',
+              style: TextStyle(fontSize: 12.5, height: 1.4, color: palette.muted),
+            ),
+            const SizedBox(height: 8),
+            TextField(
+              key: const ValueKey<String>('gregorian-date-input'),
+              controller: _input,
+              keyboardType: TextInputType.datetime,
+              textDirection: TextDirection.ltr,
+              textAlign: TextAlign.center,
+              style: TextStyle(fontFamily: kDigitFont, fontSize: 16, fontWeight: FontWeight.w700, color: palette.ink),
+              decoration: InputDecoration(
+                labelText: 'عیسوی تاریخ',
+                hintText: '18/10/2026',
+                suffixIcon: IconButton(
+                  tooltip: 'کیلنڈر سے تاریخ منتخب کریں',
+                  onPressed: _pickDate,
+                  icon: const Icon(Icons.calendar_month_outlined),
+                ),
+              ),
+              onSubmitted: (_) => _convertGregorian(),
+            ),
+          ] else ...<Widget>[
+            Text(
+              'ہجری دن، مہینہ اور سال درج کریں:',
+              style: TextStyle(fontSize: 12.5, height: 1.4, color: palette.muted),
+            ),
+            const SizedBox(height: 8),
+            Row(
+              children: <Widget>[
+                SizedBox(
+                  width: 72,
+                  child: TextField(
+                    key: const ValueKey<String>('hijri-day-input'),
+                    controller: _hijriDayCtrl,
+                    keyboardType: TextInputType.number,
+                    textDirection: TextDirection.ltr,
+                    textAlign: TextAlign.center,
+                    style: TextStyle(fontFamily: kDigitFont, fontSize: 16, fontWeight: FontWeight.w700, color: palette.ink),
+                    decoration: const InputDecoration(
+                      labelText: 'دن',
+                      hintText: '10',
+                      contentPadding: EdgeInsets.symmetric(horizontal: 8, vertical: 12),
+                    ),
+                    onSubmitted: (_) => _convertHijri(),
+                  ),
+                ),
+                const SizedBox(width: 8),
+                Expanded(
+                  child: DropdownButtonFormField<int>(
+                    key: const ValueKey<String>('hijri-month-select'),
+                    initialValue: _selectedHijriMonth,
+                    isExpanded: true,
+                    dropdownColor: palette.solid,
+                    decoration: const InputDecoration(
+                      labelText: 'ہجری مہینہ',
+                      contentPadding: EdgeInsets.symmetric(horizontal: 10, vertical: 11),
+                    ),
+                    items: <DropdownMenuItem<int>>[
+                      for (var m = 1; m <= 12; m++)
+                        DropdownMenuItem<int>(
+                          value: m,
+                          child: Text(
+                            '$m - ${kHijriMonthsUrdu[m - 1]}',
+                            maxLines: 1,
+                            overflow: TextOverflow.ellipsis,
+                            style: TextStyle(fontSize: 13.5, color: palette.ink),
+                          ),
+                        ),
+                    ],
+                    onChanged: (value) {
+                      if (value != null) {
+                        setState(() {
+                          _selectedHijriMonth = value;
+                          _error = null;
+                        });
+                      }
+                    },
+                  ),
+                ),
+                const SizedBox(width: 8),
+                SizedBox(
+                  width: 88,
+                  child: TextField(
+                    key: const ValueKey<String>('hijri-year-input'),
+                    controller: _hijriYearCtrl,
+                    keyboardType: TextInputType.number,
+                    textDirection: TextDirection.ltr,
+                    textAlign: TextAlign.center,
+                    style: TextStyle(fontFamily: kDigitFont, fontSize: 16, fontWeight: FontWeight.w700, color: palette.ink),
+                    decoration: const InputDecoration(
+                      labelText: 'سال (ھ)',
+                      hintText: '1448',
+                      contentPadding: EdgeInsets.symmetric(horizontal: 8, vertical: 12),
+                    ),
+                    onSubmitted: (_) => _convertHijri(),
+                  ),
+                ),
+              ],
+            ),
           ],
-          const SizedBox(height: 8),
+          if (_error != null) ...<Widget>[
+            const SizedBox(height: 6),
+            Text(_error!, style: TextStyle(fontSize: 12.5, fontWeight: FontWeight.w700, color: palette.gold)),
+          ],
+          const SizedBox(height: 10),
           Row(
             children: <Widget>[
               Expanded(
                 child: OutlinedButton.icon(
-                  onPressed: () => _convert(widget.initialDate),
+                  onPressed: _convertToday,
                   icon: const Icon(Icons.today_outlined, size: 18),
                   label: const Text('آج'),
                 ),
@@ -343,46 +541,49 @@ class _GregorianDateConverterState extends State<_GregorianDateConverter> {
               const SizedBox(width: 8),
               Expanded(
                 child: FilledButton.icon(
-                  onPressed: _convert,
+                  onPressed: _runConvert,
                   icon: const Icon(Icons.sync_alt, size: 18),
                   label: const Text('تبدیل کریں'),
                 ),
               ),
             ],
           ),
-          const SizedBox(height: 11),
+          const SizedBox(height: 12),
           Container(
-            padding: const EdgeInsets.all(11),
+            padding: const EdgeInsets.all(13),
             decoration: BoxDecoration(
-              color: palette.solid.withValues(alpha: 0.72),
-              borderRadius: BorderRadius.circular(15),
-              border: Border.all(color: palette.border),
+              color: palette.solid.withValues(alpha: 0.78),
+              borderRadius: BorderRadius.circular(16),
+              border: Border.all(color: palette.gold.withValues(alpha: 0.45)),
             ),
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.stretch,
               children: <Widget>[
                 Text(
-                  formatDateUrdu(_gregorian),
+                  isGregToHijri ? formatDateUrdu(_gregorian) : formatHijriUrdu(_hijri),
                   textAlign: TextAlign.center,
-                  style: TextStyle(fontSize: 13, color: palette.muted),
+                  style: TextStyle(fontSize: 13.5, color: palette.muted),
                 ),
-                const SizedBox(height: 2),
+                const SizedBox(height: 3),
                 Text(
-                  formatHijriUrdu(_hijri),
+                  isGregToHijri ? formatHijriUrdu(_hijri) : formatDateUrdu(_gregorian),
                   textAlign: TextAlign.center,
                   style: TextStyle(
-                    fontSize: 23,
+                    fontSize: 22,
                     height: 1.35,
                     fontWeight: FontWeight.w800,
                     color: palette.accent,
                   ),
                 ),
+                const SizedBox(height: 2),
                 Text(
                   'دن: ${weekdayUrdu(_gregorian)}',
                   textAlign: TextAlign.center,
-                  style: TextStyle(fontSize: 13, fontWeight: FontWeight.w700, color: palette.ink),
+                  style: TextStyle(fontSize: 13.5, fontWeight: FontWeight.w700, color: palette.ink),
                 ),
-                const SizedBox(height: 6),
+                const SizedBox(height: 8),
+                Divider(height: 1, color: palette.border),
+                const SizedBox(height: 8),
                 if (events.isEmpty)
                   Text(
                     'اس تاریخ کے لیے درج شدہ کوئی خاص مناسبت نہیں۔',
@@ -394,7 +595,7 @@ class _GregorianDateConverterState extends State<_GregorianDateConverter> {
                     Text(
                       event.title,
                       textAlign: TextAlign.center,
-                      style: TextStyle(fontSize: 14, fontWeight: FontWeight.w800, color: palette.gold),
+                      style: TextStyle(fontSize: 14.5, fontWeight: FontWeight.w800, color: palette.gold),
                     ),
                     if (event.note != null)
                       Text(
@@ -403,9 +604,9 @@ class _GregorianDateConverterState extends State<_GregorianDateConverter> {
                         style: TextStyle(fontSize: 12, height: 1.4, color: palette.muted),
                       ),
                   ],
-                const SizedBox(height: 5),
+                const SizedBox(height: 6),
                 Text(
-                  'یہ مقامی فلکیاتی تخمینہ ہے؛ اصل رؤیت، مرجع اور برادری کے اعلان سے تاریخ ایک دن مختلف ہو سکتی ہے۔',
+                  'یہ مقامی فلکیاتی ہلال کے عین مطابق حساب ہے؛ اصل رؤیت، مرجع اور برادری کے اعلان سے تاریخ ایک دن مختلف ہو سکتی ہے۔',
                   textAlign: TextAlign.center,
                   style: TextStyle(fontSize: 11.5, height: 1.4, color: palette.muted),
                 ),
@@ -413,6 +614,52 @@ class _GregorianDateConverterState extends State<_GregorianDateConverter> {
             ),
           ),
         ],
+      ),
+    );
+  }
+}
+
+class _ModeTabButton extends StatelessWidget {
+  const _ModeTabButton({
+    super.key,
+    required this.label,
+    required this.selected,
+    required this.palette,
+    required this.onTap,
+  });
+
+  final String label;
+  final bool selected;
+  final GlassPalette palette;
+  final VoidCallback onTap;
+
+  @override
+  Widget build(BuildContext context) {
+    return Material(
+      color: selected ? palette.accent.withValues(alpha: 0.22) : Colors.transparent,
+      borderRadius: BorderRadius.circular(10),
+      child: InkWell(
+        borderRadius: BorderRadius.circular(10),
+        onTap: onTap,
+        child: Container(
+          padding: const EdgeInsets.symmetric(vertical: 8, horizontal: 10),
+          decoration: BoxDecoration(
+            borderRadius: BorderRadius.circular(10),
+            border: Border.all(
+              color: selected ? palette.gold.withValues(alpha: 0.85) : Colors.transparent,
+              width: 1.1,
+            ),
+          ),
+          child: Text(
+            label,
+            textAlign: TextAlign.center,
+            style: TextStyle(
+              fontSize: 13.5,
+              fontWeight: selected ? FontWeight.w800 : FontWeight.w600,
+              color: selected ? palette.gold : palette.muted,
+            ),
+          ),
+        ),
       ),
     );
   }

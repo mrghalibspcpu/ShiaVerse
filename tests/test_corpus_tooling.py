@@ -20,12 +20,13 @@ import prepare_databases  # noqa: E402
 
 
 class DatabaseSpecTests(unittest.TestCase):
-    def test_catalogue_covers_twenty_two_databases(self):
-        self.assertEqual(len(DATABASES), 22)
-        self.assertEqual(len([spec for spec in DATABASES if spec.source == "hadith"]), 14)
-        # 8 curated standalones (Quran, Mafatih, Sahifa, the three marjas,
-        # the encyclopaedia and Najafi) — 14 hadith books + 8 = 22.
-        self.assertEqual(len(EXTRA_DATABASES), 8)
+    def test_catalogue_covers_nineteen_databases(self):
+        self.assertEqual(len(DATABASES), 19)
+        self.assertEqual(len([spec for spec in DATABASES if spec.source == "hadith"]), 10)
+        # 9 curated standalones (Quran, Mafatih, Sahifa Sajjadiyya, Sahifa
+        # Alawiyya, Nahj al-Balagha, the three marjas, and the encyclopaedia)
+        # — 10 hadith books + 9 = 19.
+        self.assertEqual(len(EXTRA_DATABASES), 9)
 
     def test_keys_and_file_names_are_unique(self):
         keys = [spec.key for spec in DATABASES]
@@ -53,14 +54,14 @@ class HadithOrphanBaselineTests(unittest.TestCase):
     compares the live count against this baseline, so pin it here too.
     """
 
-    def test_baseline_is_pinned_to_twenty_rows(self) -> None:
+    def test_baseline_is_pinned_to_four_rows(self) -> None:
         from verify_corpus import KNOWN_SECTION_ORPHANS
 
         self.assertEqual(
             KNOWN_SECTION_ORPHANS,
-            {"hidaya": 6, "imam": 1, "manlahyahzur": 3, "wasail": 10},
+            {"imam": 1, "manlahyahzur": 3},
         )
-        self.assertEqual(sum(KNOWN_SECTION_ORPHANS.values()), 20)
+        self.assertEqual(sum(KNOWN_SECTION_ORPHANS.values()), 4)
 
     def test_client_keeps_orphans_readable(self) -> None:
         """The indexed hadith query must be a LEFT JOIN, not an inner join."""
@@ -81,8 +82,8 @@ class ManifestTests(unittest.TestCase):
 
     def test_manifest_is_version_two_and_complete(self):
         self.assertEqual(self.manifest["format_version"], 2)
-        self.assertEqual(self.manifest["database_count"], 22)
-        self.assertEqual(len(self.manifest["databases"]), 22)
+        self.assertEqual(self.manifest["database_count"], 19)
+        self.assertEqual(len(self.manifest["databases"]), 19)
 
     def test_every_entry_carries_a_digest_and_titles(self):
         for entry in self.manifest["databases"]:
@@ -95,14 +96,15 @@ class ManifestTests(unittest.TestCase):
 
     def test_totals_match_the_known_corpus(self):
         totals = self.manifest["totals"]
-        self.assertEqual(totals["hadith_records"], 96513)
-        self.assertEqual(totals["sections"], 17855)
-        self.assertEqual(totals["chapters"], 845)
+        self.assertEqual(totals["hadith_records"], 36159)
+        self.assertEqual(totals["sections"], 4250)
+        self.assertEqual(totals["chapters"], 86)
         self.assertEqual(totals["quran_verses"], 6236)
         self.assertEqual(totals["quran_surahs"], 114)
         self.assertEqual(totals["dua_items"], 677)
         self.assertEqual(totals["balagha_paragraphs"], 3742)
         self.assertEqual(totals["sahifa_rows"], 2103)
+        self.assertEqual(totals["sahifa_alawiyya_duas"], 160)
 
     def test_asset_names_match_what_the_app_requests(self):
         """`<name>` + `<extension>` must equal the file publish_databases.py writes."""
@@ -120,7 +122,7 @@ class ManifestTests(unittest.TestCase):
         download = self.manifest["download"]
         self.assertEqual(download["extension"], ".gz")
         self.assertIn("/databases-v2/", download["base_urls"][0])
-        self.assertIn("/databases-v1/", download["base_urls"][1])
+        self.assertIn("/databases-v1/", download["base_urls"][2])
         for url in download["base_urls"]:
             with self.subTest(url):
                 self.assertTrue(url.startswith("https://"))
@@ -137,7 +139,11 @@ class ManifestTests(unittest.TestCase):
     def test_replacement_books_are_bundled_with_manifest_hashes(self):
         app_assets = ROOT / "app" / "assets" / "databases"
         by_name = {entry["name"]: entry for entry in self.manifest["databases"]}
-        for name in ("mafatihdb-v4.db", "Sahifa_Sajjadiyya_full_runtime.sqlite3"):
+        for name in (
+            "mafatihdb-v4.db",
+            "Sahifa_Sajjadiyya_full_runtime.sqlite3",
+            "Sahifa_Alawiyya_Urdu_Honorifics_Final.sqlite",
+        ):
             with self.subTest(name):
                 path = app_assets / name
                 self.assertTrue(path.is_file(), f"{name} must be bundled for offline migration")

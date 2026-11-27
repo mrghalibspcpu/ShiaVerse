@@ -7,9 +7,9 @@ import '../widgets/resume_card.dart';
 import 'duas_screen.dart';
 import 'library_screen.dart' show ChapterListScreen;
 
-/// The screen behind the single "مفاتیح الجنان و صحیفہ سجادیہ" library tile.
+/// The screen behind the single "مفاتیح الجنان و صحیفہ سجادیہ و علویہ" library tile.
 ///
-/// The two prayer books are one entry on the home row. They are shown as a
+/// The three prayer books are one entry on the home row. They are shown as a
 /// grid, and each tile keeps that book's own last-seen row, refreshed when
 /// the book closes.
 class DuaCollectionScreen extends StatefulWidget {
@@ -63,8 +63,9 @@ class _DuaCollectionScreenState extends State<DuaCollectionScreen> {
                 ),
                 const SizedBox(height: 6),
                 JustifiedText(
-                  'دعاؤں کی دونوں کتابیں ایک جگہ: مفاتیح الجنان میں روزانہ کی دعائیں، زیارات، '
-                  'تعقیبات اور مہینوں کے اعمال؛ صحیفہ سجادیہ میں امام زین العابدین (ع) کی دعائیں۔',
+                  'دعاؤں کی تینوں مستند کتابیں ایک جگہ: مفاتیح الجنان میں روزانہ کی دعائیں، زیارات '
+                  'اور اعمال؛ صحیفہ سجادیہ میں امام زین العابدین (ع) کی مناجات؛ اور صحیفہ علویہ میں '
+                  'امیرالمومنین حضرت علی (ع) کی دعائیں۔',
                   style: TextStyle(fontSize: 13, color: colors.onSurfaceVariant),
                 ),
               ],
@@ -78,7 +79,7 @@ class _DuaCollectionScreenState extends State<DuaCollectionScreen> {
                 crossAxisCount: 2,
                 mainAxisSpacing: 12,
                 crossAxisSpacing: 12,
-                childAspectRatio: 0.62,
+                childAspectRatio: 0.68,
               ),
               itemCount: books.length,
               itemBuilder: (context, index) {
@@ -125,7 +126,7 @@ class _DuaBookCard extends StatelessWidget {
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.stretch,
             children: [
-              Expanded(child: _BookCover(mafatih: _isMafatih)),
+              Expanded(child: _BookCover(book: book)),
               const SizedBox(height: 8),
               JustifiedText(
                 book.titleUrdu,
@@ -186,7 +187,7 @@ class _LastSeenChip extends StatelessWidget {
   }
 }
 
-/// "N عنوانات" for Mafatih, "N دعائیں" for Sahifa.
+/// "N عنوانات" for Mafatih, "N دعائیں" for Sahifa Sajjadiyya / Sahifa Alawiyya.
 class _BookCount extends StatelessWidget {
   const _BookCount({required this.library, required this.book, required this.mafatih});
 
@@ -219,17 +220,32 @@ class _BookCount extends StatelessWidget {
   }
 }
 
-/// A painted cover: gold for Mafatih, emerald for Sahifa.
+/// Painted illuminated covers for Mafatih (gold), Sahifa Sajjadiyya (emerald),
+/// and Sahifa Alawiyya (royal indigo-teal).
 class _BookCover extends StatelessWidget {
-  const _BookCover({required this.mafatih});
+  const _BookCover({required this.book});
 
-  final bool mafatih;
+  final BookDefinition book;
 
   @override
   Widget build(BuildContext context) {
-    final colors = mafatih
-        ? const <Color>[Color(0xFF7A5418), kGold]
-        : const <Color>[kForestDark, kForest];
+    final (colors, icon, arabicTitle) = switch (book.key) {
+      'mafatih' => (
+          const <Color>[Color(0xFF7A5418), kGold],
+          Icons.mosque,
+          'مفاتيح الجنان',
+        ),
+      'sahifa_alawiyya' => (
+          const <Color>[Color(0xFF1A2956), Color(0xFF13687A)],
+          Icons.menu_book_rounded,
+          'الصحيفة العلوية',
+        ),
+      _ => (
+          const <Color>[kForestDark, kForest],
+          Icons.auto_stories,
+          'الصحيفة السجادية',
+        ),
+    };
     return Container(
       padding: const EdgeInsets.all(8),
       decoration: BoxDecoration(
@@ -244,10 +260,10 @@ class _BookCover extends StatelessWidget {
       child: Column(
         mainAxisAlignment: MainAxisAlignment.center,
         children: [
-          Icon(mafatih ? Icons.mosque : Icons.auto_stories, color: Colors.white, size: 32),
+          Icon(icon, color: Colors.white, size: 32),
           const SizedBox(height: 8),
           Text(
-            mafatih ? 'مفاتيح الجنان' : 'الصحيفة السجادية',
+            arabicTitle,
             textAlign: TextAlign.center,
             maxLines: 2,
             style: const TextStyle(

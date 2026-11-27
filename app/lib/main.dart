@@ -428,8 +428,6 @@ class LibraryBootstrap extends StatefulWidget {
 }
 
 class _LibraryBootstrapState extends State<LibraryBootstrap> {
-  double _progress = 0;
-  String _status = 'کتب کی تیاری ہو رہی ہے';
   String? _error;
   bool _starting = false;
 
@@ -448,16 +446,7 @@ class _LibraryBootstrapState extends State<LibraryBootstrap> {
       // and open the books. The slow full-text index runs in the background so
       // the library opens straight away — even on a fresh install that has not
       // downloaded anything yet.
-      await widget.library.initialize(
-        onProgress: (progress, message) {
-          if (!mounted) return;
-          setState(() {
-            _progress = progress;
-            _status = message;
-          });
-        },
-        buildSearchIndex: false,
-      );
+      await widget.library.initialize(buildSearchIndex: false);
       if (mounted) widget.onReady();
       unawaited(widget.library.ensureSearchIndex());
     } catch (error) {
@@ -484,48 +473,59 @@ class _LibraryBootstrapState extends State<LibraryBootstrap> {
         onAction: widget.onAction,
       );
     }
-    return Scaffold(
-      body: SafeArea(
-        child: Center(
-          child: ConstrainedBox(
-            constraints: const BoxConstraints(maxWidth: 460),
-            child: Padding(
-              padding: const EdgeInsets.all(28),
-              child: Column(
-                mainAxisAlignment: MainAxisAlignment.center,
-                children: [
-                  ClipRRect(
-                    borderRadius: BorderRadius.circular(26),
-                    child: Image.asset(
-                      'assets/images/shiaverse_icon.png',
-                      width: 116,
-                      height: 116,
-                      fit: BoxFit.cover,
-                      // The asset is 512x512; decoding it at 240 px costs a
-                      // fraction of a megabyte and paints without a stall.
-                      cacheWidth: 240,
-                      cacheHeight: 240,
+    return AnnotatedRegion<SystemUiOverlayStyle>(
+      value: SystemUiOverlayStyle.light.copyWith(
+        statusBarColor: Colors.transparent,
+        systemNavigationBarColor: const Color(0xFF05061A),
+      ),
+      child: Scaffold(
+        backgroundColor: const Color(0xFF05061A),
+        body: Stack(
+          fit: StackFit.expand,
+          children: <Widget>[
+            Image.asset(
+              'assets/images/splash_wallpaper.jpg',
+              key: const ValueKey<String>('splash-wallpaper'),
+              fit: BoxFit.cover,
+              alignment: Alignment.center,
+              cacheWidth: 1080,
+              filterQuality: FilterQuality.medium,
+            ),
+            if (_error != null)
+              SafeArea(
+                child: Align(
+                  alignment: Alignment.bottomCenter,
+                  child: Padding(
+                    padding: const EdgeInsets.all(24),
+                    child: DecoratedBox(
+                      decoration: BoxDecoration(
+                        color: const Color(0xDD0B1218),
+                        borderRadius: BorderRadius.circular(20),
+                        border: Border.all(color: kGold.withValues(alpha: 0.5)),
+                      ),
+                      child: Padding(
+                        padding: const EdgeInsets.all(18),
+                        child: Column(
+                          mainAxisSize: MainAxisSize.min,
+                          children: <Widget>[
+                            JustifiedText(
+                              'کتب تیار کرتے ہوئے مسئلہ پیش آیا: $_error',
+                              style: const TextStyle(color: Colors.white, fontSize: 14),
+                            ),
+                            const SizedBox(height: 14),
+                            FilledButton.icon(
+                              onPressed: _starting ? null : _start,
+                              icon: const Icon(Icons.refresh),
+                              label: const Text('دوبارہ کوشش کریں'),
+                            ),
+                          ],
+                        ),
+                      ),
                     ),
                   ),
-                  const SizedBox(height: 22),
-                  const Text('ShiaVerse', style: TextStyle(fontSize: 30, fontWeight: FontWeight.bold)),
-                  const SizedBox(height: 10),
-                  JustifiedText(_error == null ? _status : 'کتب تیار کرتے ہوئے مسئلہ پیش آیا: $_error'),
-                  const SizedBox(height: 18),
-                  if (_error == null) ...[
-                    LinearProgressIndicator(value: _progress == 0 ? null : _progress),
-                    const SizedBox(height: 10),
-                    Text('${(_progress * 100).round()}%'),
-                  ] else
-                    FilledButton.icon(
-                      onPressed: _starting ? null : _start,
-                      icon: const Icon(Icons.refresh),
-                      label: const Text('دوبارہ کوشش کریں'),
-                    ),
-                ],
+                ),
               ),
-            ),
-          ),
+          ],
         ),
       ),
     );
@@ -615,15 +615,31 @@ class HomeShellState extends State<HomeShell> {
   Widget build(BuildContext context) {
     // Rebuild when a download finishes, so the dashboard's containers show the
     // new book immediately instead of after a manual refresh.
+    final isDark = Theme.of(context).brightness == Brightness.dark;
     return ValueListenableBuilder<int>(
       valueListenable: widget.library.catalogVersion,
       builder: (context, _, __) => AnnotatedRegion<SystemUiOverlayStyle>(
-        value: (Theme.of(context).brightness == Brightness.dark
-                ? SystemUiOverlayStyle.light
-                : SystemUiOverlayStyle.dark)
+        value: (isDark ? SystemUiOverlayStyle.light : SystemUiOverlayStyle.dark)
             .copyWith(statusBarColor: Colors.transparent, systemNavigationBarColor: Colors.transparent),
         child: Scaffold(
-          body: TickerMode(enabled: true, child: _homePage),
+          backgroundColor: isDark ? null : const Color(0xFFF6F1E4),
+          body: Stack(
+            fit: StackFit.expand,
+            children: <Widget>[
+              if (!isDark)
+                Positioned.fill(
+                  child: Image.asset(
+                    'assets/images/home_light_wallpaper.jpg',
+                    key: const ValueKey<String>('home-light-wallpaper'),
+                    fit: BoxFit.cover,
+                    alignment: Alignment.topCenter,
+                    cacheWidth: 900,
+                    filterQuality: FilterQuality.medium,
+                  ),
+                ),
+              TickerMode(enabled: true, child: _homePage),
+            ],
+          ),
           bottomNavigationBar: HomeDockBar(
             selected: null,
             onSelected: _onDockSelected,

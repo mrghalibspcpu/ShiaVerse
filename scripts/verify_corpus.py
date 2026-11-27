@@ -31,12 +31,9 @@ def check(label: str, condition: bool, detail: str = "") -> None:
 
 
 # Content-bearing Parags rows whose Secid has no Sections row, per book.
-# Verified against the committed bundle on 2026-10-14: 20 rows in total.
 KNOWN_SECTION_ORPHANS = {
-    "hidaya": 6,
     "imam": 1,
     "manlahyahzur": 3,
-    "wasail": 10,
 }
 
 
@@ -147,6 +144,21 @@ def balagha_checks(db: sqlite3.Connection) -> None:
     )
 
 
+def sahifa_alawiyya_checks(db: sqlite3.Connection) -> None:
+    duas = db.execute('SELECT COUNT(*) FROM "دعائیں"').fetchone()[0]
+    groups = db.execute('SELECT COUNT(*) FROM "ماخذ_گروہ"').fetchone()[0]
+    check("sahifa alawiyya: 160 supplications", duas == 160, f"{duas}")
+    check("sahifa alawiyya: 113 source groups", groups == 113, f"{groups}")
+    missing = db.execute(
+        'SELECT COUNT(*) FROM "دعائیں" WHERE trim("عربی_متن") = \'\' OR trim("اردو_ترجمہ") = \'\''
+    ).fetchone()[0]
+    check("sahifa alawiyya: every supplication has Arabic and Urdu", missing == 0, f"{missing} missing")
+    unlinked = db.execute(
+        'SELECT COUNT(*) FROM "دعائیں" WHERE "ماخذ_کا_رابطہ" NOT LIKE \'https://%\''
+    ).fetchone()[0]
+    check("sahifa alawiyya: every supplication has an https source URL", unlinked == 0, f"{unlinked} unlinked")
+
+
 def run_checks(collected: list[tuple[object, Path]], expected_count: int) -> None:
     records = build_records(collected)  # type: ignore[arg-type]
     check(
@@ -168,6 +180,8 @@ def run_checks(collected: list[tuple[object, Path]], expected_count: int) -> Non
                 mafatih_checks(connection)
             elif spec.source == "balagha":  # type: ignore[attr-defined]
                 balagha_checks(connection)
+            elif spec.key == "sahifa_alawiyya":  # type: ignore[attr-defined]
+                sahifa_alawiyya_checks(connection)
         finally:
             connection.close()
 
@@ -187,8 +201,8 @@ def main() -> int:
     manifest = json.loads(MANIFEST_PATH.read_text(encoding="utf-8"))
     entries = {row["name"]: row for row in manifest.get("databases", [])}
     check(
-        "manifest lists 22 databases",
-        manifest.get("database_count") == 22 and len(entries) == 22,
+        "manifest lists 19 databases",
+        manifest.get("database_count") == 19 and len(entries) == 19,
         f"{len(entries)} entries",
     )
 

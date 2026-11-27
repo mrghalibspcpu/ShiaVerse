@@ -50,7 +50,9 @@ class _LibraryHomeScreenState extends State<LibraryHomeScreen> {
     // the tasbeeh dial and the search bar. The download notice and the search
     // index progress sit above it as one slim strip, and both disappear on
     // their own once they are done.
+    final isDark = Theme.of(context).brightness == Brightness.dark;
     return Scaffold(
+      backgroundColor: isDark ? null : Colors.transparent,
       body: SafeArea(
         bottom: false,
         child: Column(
@@ -428,12 +430,19 @@ class _ChapterListScreenState extends State<ChapterListScreen> {
                     title: JustifiedText(title, style: const TextStyle(fontSize: 17, fontWeight: FontWeight.w600)),
                     trailing: const Icon(Icons.chevron_left),
                     onTap: () => Navigator.of(context).push(MaterialPageRoute(
-                      builder: (_) => SectionListScreen(
-                        library: library,
-                        book: book,
-                        chapterId: cid,
-                        chapterTitle: title,
-                      ),
+                      builder: (_) => book.source == CorpusSource.sahifa
+                          ? ReaderScreen(
+                              library: library,
+                              book: book,
+                              sectionId: cid,
+                              sectionTitle: title,
+                            )
+                          : SectionListScreen(
+                              library: library,
+                              book: book,
+                              chapterId: cid,
+                              chapterTitle: title,
+                            ),
                     )),
                   ),
                 ),

@@ -23,30 +23,27 @@ enum StudyTrack {
   /// ختمِ قرآن: the 604 pages of the mushaf.
   quran('قرآنِ کریم', 'مصحف کے ۶۰۴ صفحات'),
 
-  /// Both dua collections remain separately selectable in the library.
+  /// All three dua collections remain separately selectable in the library.
   mafatih('مفاتیح الجنان', 'دعائیں، اعمال اور زیارات'),
   sahifa('صحیفہ سجادیہ', 'صحیفے اور مناجات کی ۸۳ دعائیں'),
+  sahifaAlawiyya('صحیفہ علویہ', 'امیرالمومنین علیہ السلام کی ۱۶۰ دعائیں'),
 
   /// نہج البلاغہ's sermons (خطبات), letters (خطوط), and wisdom (حکمت).
   balaghaSermons('نہج البلاغہ — خطبات', 'امیر المومنین علیہ السلام کے خطبات'),
   balaghaLetters('نہج البلاغہ — خطوط', 'امیر المومنین علیہ السلام کے مکتوبات'),
   balaghaWisdom('نہج البلاغہ — حکمت', 'اقوالِ قصار و حکمت بھری باتیں'),
 
-  /// The complete hadith books already offered by the library.
-  tahzeeb('تہذیب الاحکام', 'کتابِ احادیث'),
+  /// The complete hadith books offered by the library.
   alkafi('الکافی', 'کتابِ احادیث'),
   alkhisal('الخصال', 'کتابِ احادیث'),
   hakam('غرر الحکم', 'کتابِ احادیث'),
-  hidaya('ہدایۃ العلم', 'کتابِ احادیث'),
-  hikmatprophet('حکمت نامۂ رسول اکرم(ص)', 'کتابِ احادیث'),
+  hidaya('وسیلۃ الحکم (ہدایۃ العلم)', 'کتابِ احادیث'),
   imam('حکمت نامہ امام حسین(ع)', 'کتابِ احادیث'),
   kamaledeen('کمال الدین و تمام النعمة', 'کتابِ احادیث'),
   maniakbar('معانی الاخبار', 'کتابِ احادیث'),
   manlahyahzur('من لا یحضره الفقیہ', 'کتابِ احادیث'),
-  mezan('میزان الحکمة', 'کتابِ احادیث'),
   swab('ثواب الاعمال', 'کتابِ احادیث'),
   towheed('کتاب التوحید', 'کتابِ احادیث'),
-  wasail('وسائل الشیعہ', 'کتابِ احادیث'),
 
   /// Khamenei remains in the data catalog for compatibility but is not listed
   /// in this new study picker, matching the visible دینی مسائل selection.
@@ -64,22 +61,19 @@ enum StudyTrack {
         StudyTrack.quran => 'quran',
         StudyTrack.mafatih => 'mafatih',
         StudyTrack.sahifa => 'sahifa',
+        StudyTrack.sahifaAlawiyya => 'sahifa_alawiyya',
         StudyTrack.balaghaSermons || StudyTrack.balaghaLetters || StudyTrack.balaghaWisdom =>
           'nahjul_balagha',
-        StudyTrack.tahzeeb => 'tahzeeb',
         StudyTrack.alkafi => 'alkafi',
         StudyTrack.alkhisal => 'alkhisal',
         StudyTrack.hakam => 'hakam',
         StudyTrack.hidaya => 'hidaya',
-        StudyTrack.hikmatprophet => 'hikmatprophet',
         StudyTrack.imam => 'imam',
         StudyTrack.kamaledeen => 'kamaledeen',
         StudyTrack.maniakbar => 'maniakbar',
         StudyTrack.manlahyahzur => 'manlahyahzur',
-        StudyTrack.mezan => 'mezan',
         StudyTrack.swab => 'swab',
         StudyTrack.towheed => 'towheed',
-        StudyTrack.wasail => 'wasail',
         StudyTrack.sistani => 'sistani',
         StudyTrack.najafi => 'najafi',
         StudyTrack.encyclopedia => 'athna_ashari_encyclopedia',
@@ -100,7 +94,7 @@ enum StudyTrack {
   String get unitLabelUrdu => switch (this) {
         StudyTrack.quran => 'صفحہ',
         StudyTrack.balaghaSermons || StudyTrack.balaghaLetters || StudyTrack.balaghaWisdom => 'نمبر',
-        StudyTrack.mafatih || StudyTrack.sahifa => 'دعا',
+        StudyTrack.mafatih || StudyTrack.sahifa || StudyTrack.sahifaAlawiyya => 'دعا',
         StudyTrack.encyclopedia => 'مضمون',
         StudyTrack.sistani || StudyTrack.najafi => 'باب',
         _ => 'متن',

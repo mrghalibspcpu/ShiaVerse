@@ -305,6 +305,18 @@ def sahifa(connection: sqlite3.Connection) -> None:
     )
 
 
+def sahifa_alawiyya(connection: sqlite3.Connection) -> None:
+    query = extract_query('SELECT d."دعا_نمبر" AS record_id')
+    rows = connection.execute(
+        f"SELECT record_id, section_id, section_title, source_url, arabic, urdu FROM ({query})"
+    ).fetchall()
+    check("sahifa alawiyya: 160 supplications load", len(rows) == 160, f"{len(rows)} rows")
+    unlinked = [row for row in rows if not str(row[3] or "").startswith("https://")]
+    check("sahifa alawiyya: every supplication links to its source", not unlinked, f"{len(unlinked)} unlinked")
+    blank = [row for row in rows if not str(row[4] or "").strip() or not str(row[5] or "").strip()]
+    check("sahifa alawiyya: every supplication has Arabic and Urdu", not blank, f"{len(blank)} blank")
+
+
 def fatwa(name: str):
     """Every ruling keeps the official page it was taken from."""
 
@@ -433,6 +445,7 @@ def build_index(paths: dict[str, Path]) -> sqlite3.Connection:
         "mafatih": "SELECT m.rowid AS record_id, m.M_name AS section_title",
         "nahjul_balagha": "WHERE x.Type BETWEEN 1 AND 3\n          ORDER BY record_id",
         "sahifa": "SELECT d.ID AS record_id, d.t_id * 10000",
+        "sahifa_alawiyya": 'SELECT d."دعا_نمبر" AS record_id',
         "khamenei": "SELECT q.rowid AS record_id, q.category_id AS section_id",
         "sistani": "SELECT q.rowid AS record_id, q.category_id AS section_id",
         "athna_ashari_encyclopedia": "FROM sections AS s JOIN articles AS a ON a.id = s.article_id\n          ORDER BY s.article_id, s.ordinal",
@@ -442,7 +455,7 @@ def build_index(paths: dict[str, Path]) -> sqlite3.Connection:
         query = extract_query(fragment)
         connection = sqlite3.connect(f"file:{paths[source_key]}?mode=ro", uri=True)
         try:
-            if source_key in {"sahifa", "khamenei", "sistani"}:
+            if source_key in {"sahifa", "sahifa_alawiyya", "khamenei", "sistani"}:
                 query = f"SELECT * FROM ({query}) ORDER BY record_id LIMIT ? OFFSET ?"
             cursor = connection.execute(query, (100000, 0))
             columns = [description[0] for description in cursor.description]
@@ -505,6 +518,7 @@ def run_checks(paths: dict[str, Path]) -> None:
         ("mafatih", dua),
         ("nahjul_balagha", balagha),
         ("sahifa", sahifa),
+        ("sahifa_alawiyya", sahifa_alawiyya),
         ("khamenei", fatwa("khamenei")),
         ("sistani", fatwa("sistani")),
         ("athna_ashari_encyclopedia", encyclopedia),

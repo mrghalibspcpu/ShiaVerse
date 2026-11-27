@@ -72,6 +72,49 @@ class HijriDate {
     return day + (153 * m + 2) ~/ 5 + 365 * y + y ~/ 4 - y ~/ 100 + y ~/ 400 - 32045;
   }
 
+  /// Proleptic Gregorian UTC date for a Julian Day Number (exact inverse of
+  /// [julianDayNumber]).
+  static DateTime gregorianFromJulianDay(int julianDay) {
+    final a = julianDay + 32044;
+    final b = (4 * a + 3) ~/ 146097;
+    final c = a - (146097 * b) ~/ 4;
+    final d = (4 * c + 3) ~/ 1461;
+    final e = c - (1461 * d) ~/ 4;
+    final m = (5 * e + 2) ~/ 153;
+    final day = e - (153 * m + 2) ~/ 5 + 1;
+    final month = m + 3 - 12 * (m ~/ 10);
+    final year = 100 * b + d - 4800 + (m ~/ 10);
+    return DateTime.utc(year, month, day);
+  }
+
+  /// Exact inverse of [fromJulianDay]: returns the Julian Day Number of this
+  /// Hijri date in the Umm al-Qura (1430–1480 AH) or tabular calendar.
+  int toJulianDay() {
+    final mIndex = (year - _kUmmAlQuraFirstYear) * 12 + (month - 1);
+    if (mIndex >= 0 && mIndex < _kUmmAlQuraMonthStarts.length - 1) {
+      return 2400000 + _kUmmAlQuraMonthStarts[mIndex] + (day - 1);
+    }
+    var low = (1948440 + ((year - 1) * 12 + (month - 1)) * 29.530588853 + (day - 1) - 45).floor();
+    var high = low + 90;
+    while (low < high) {
+      final mid = (low + high) ~/ 2;
+      final d = fromJulianDay(mid);
+      final cmp = d.year != year
+          ? d.year.compareTo(year)
+          : (d.month != month ? d.month.compareTo(month) : d.day.compareTo(day));
+      if (cmp < 0) {
+        low = mid + 1;
+      } else {
+        high = mid;
+      }
+    }
+    return low;
+  }
+
+  /// Exact inverse of [fromGregorian], accounting for [adjustDays].
+  DateTime toGregorian({int adjustDays = 0}) =>
+      gregorianFromJulianDay(toJulianDay() - adjustDays);
+
   @override
   bool operator ==(Object other) =>
       other is HijriDate && other.year == year && other.month == month && other.day == day;

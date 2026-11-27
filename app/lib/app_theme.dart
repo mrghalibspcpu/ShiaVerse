@@ -285,7 +285,7 @@ class DashboardPalette {
     backdrop: LinearGradient(
       begin: Alignment.topCenter,
       end: Alignment.bottomCenter,
-      colors: <Color>[Colors.white, Colors.white],
+      colors: <Color>[Color(0x00FFFFFF), Color(0x00FFFFFF)],
     ),
     gold: kGold,
     goldSoft: Color(0xFFEBD5A8),
