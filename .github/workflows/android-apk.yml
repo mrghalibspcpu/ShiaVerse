@@ -46,9 +46,9 @@ jobs:
       - name: Set up Flutter
         uses: subosito/flutter-action@v2
         with:
-          channel: stable
+          flutter-version: "3.41.x"
           cache: true
-          cache-key: flutter-${{ runner.os }}-${{ hashFiles('app/pubspec.yaml') }}
+          cache-key: flutter-3.41-${{ runner.os }}-${{ hashFiles('app/pubspec.yaml') }}
 
       - name: Validate corpus against the manifest
         run: python scripts/prepare_databases.py
