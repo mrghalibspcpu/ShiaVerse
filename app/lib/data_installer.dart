@@ -142,8 +142,6 @@ class DataInstaller {
     final bases = <String>[
       if (compiled.isNotEmpty) _normalized(compiled),
       'https://github.com/mrghalibspcpu/ShiaVerse/releases/download/databases-v2/',
-      'https://github.com/mrghalibspcpu/Shia-Ai/releases/download/databases-v2/',
-      'https://github.com/mrghalibspcpu/Shia-Ai/releases/download/databases-v1/',
       'https://raw.githubusercontent.com/mrghalibspcpu/ShiaVerse/main/assets/',
     ];
     for (final base in bases) {
@@ -170,50 +168,88 @@ class DataInstaller {
   String _normalized(String base) => base.endsWith('/') ? base : '$base/';
 
   /// Downloads one package, verifies it, and installs it.
+  ///
+  /// If a resumed partial file turns out to be corrupted (for instance from an
+  /// interrupted proxy stream or a stale mirror), deletes the `.part` file and
+  /// automatically retries once with a clean full download.
   Future<void> install(
     DataPackage package, {
     void Function(DataProgress progress)? onProgress,
   }) async {
     await directory.create(recursive: true);
-    try {
-      final compressed = await _download(package, onProgress: onProgress);
-      onProgress?.call(DataProgress(
-        key: package.key,
-        phase: 'تصدیق اور کشادگی',
-        received: 1,
-        total: 1,
-      ));
-      final installed = await _unpack(compressed, package);
-      compressed.deleteSync();
-      onProgress?.call(DataProgress(
-        key: package.key,
-        phase: 'مکمل',
-        received: installed,
-        total: installed,
-      ));
-    } catch (error) {
-      if (error is DataInstallException) rethrow;
-      throw DataInstallException(error.toString());
+    final partial = File('${directory.path}/${package.fileName}.part');
+    final partialUrlMeta = File('${directory.path}/${package.fileName}.part.url');
+    for (var attempt = 0; attempt < 2; attempt++) {
+      try {
+        final compressed = await _download(package, onProgress: onProgress);
+        onProgress?.call(DataProgress(
+          key: package.key,
+          phase: 'تصدیق اور کشادگی',
+          received: package.sizeBytes > 0 ? package.sizeBytes : 1,
+          total: package.sizeBytes > 0 ? package.sizeBytes : 1,
+        ));
+        final installed = await _unpack(compressed, package);
+        await _deleteQuietly(compressed);
+        await _deleteQuietly(partialUrlMeta);
+        onProgress?.call(DataProgress(
+          key: package.key,
+          phase: 'مکمل',
+          received: installed,
+          total: installed,
+        ));
+        return;
+      } catch (error) {
+        if (_cancelled) {
+          if (error is DataInstallException) rethrow;
+          throw DataInstallException(error.toString());
+        }
+        // Wipe any broken partial buffer before the clean retry (or so the
+        // user's next tap starts fresh instead of re-reading bad bytes).
+        await _deleteQuietly(partial);
+        await _deleteQuietly(partialUrlMeta);
+        if (attempt == 0) continue;
+        if (error is DataInstallException) rethrow;
+        throw DataInstallException(error.toString());
+      }
     }
   }
 
   /// Installs packages one after another; returns the keys that succeeded.
+  ///
+  /// Continues through the remaining books even if one fails, so a single
+  /// flaky download never blocks the rest of the library; throws the last
+  /// error at the end only if at least one book failed.
   Future<List<String>> installMany(
     Iterable<DataPackage> packages, {
     void Function(DataProgress progress)? onProgress,
     void Function(DataPackage package)? onPackageInstalled,
+    void Function(DataPackage package, Object error)? onPackageFailed,
   }) async {
     _cancelled = false;
     final done = <String>[];
+    final failures = <String>[];
+    Object? firstError;
     for (final package in packages) {
       if (_cancelled) break;
       if (isInstalled(package)) {
         done.add(package.key);
         continue;
       }
-      await install(package, onProgress: onProgress);
-      done.add(package.key);
-      onPackageInstalled?.call(package);
+      try {
+        await install(package, onProgress: onProgress);
+        done.add(package.key);
+        onPackageInstalled?.call(package);
+      } catch (error) {
+        if (_cancelled) rethrow;
+        firstError ??= error;
+        failures.add(package.titleUrdu);
+        onPackageFailed?.call(package, error);
+      }
+    }
+    if (failures.isNotEmpty) {
+      throw DataInstallException(
+        'بعض کتب ڈاؤن لوڈ نہ ہو سکیں (${failures.join('، ')}): $firstError',
+      );
     }
     return done;
   }
@@ -273,10 +309,23 @@ class DataInstaller {
     if (urls.isEmpty) throw const DataInstallException('کوئی ڈاؤن لوڈ پتہ دستیاب نہیں۔');
 
     final partial = File('${directory.path}/${package.fileName}.part');
+    final partialUrlMeta = File('${directory.path}/${package.fileName}.part.url');
     Object? lastError;
     for (final url in urls) {
       if (_cancelled) throw const DataInstallException('ڈاؤن لوڈ منسوخ کر دیا گیا۔');
       try {
+        // Only resume `.part` bytes if they came from the exact same URL!
+        // Appending Range bytes from a different fallback URL or compressed vs
+        // uncompressed endpoint produces an undecodable hybrid file.
+        if (partial.existsSync()) {
+          final previousUrl = partialUrlMeta.existsSync()
+              ? partialUrlMeta.readAsStringSync().trim()
+              : '';
+          if (previousUrl != url) {
+            await _deleteQuietly(partial);
+          }
+        }
+        partialUrlMeta.writeAsStringSync(url, flush: true);
         final file = await _downloadTo(url, partial, package, onProgress: onProgress);
         if (file.lengthSync() == 0) {
           throw const DataInstallException('خالی فائل موصول ہوئی۔');
@@ -299,9 +348,14 @@ class DataInstaller {
     void Function(DataProgress progress)? onProgress,
   }) async {
     var resumeFrom = partial.existsSync() ? partial.lengthSync() : 0;
-    if (resumeFrom > 0 && !_catalog.extension.endsWith('.gz')) resumeFrom = 0;
+    if (resumeFrom > 0 && !url.endsWith('.gz')) {
+      await _deleteQuietly(partial);
+      resumeFrom = 0;
+    }
 
     final request = http.Request('GET', Uri.parse(url));
+    // Prevent transparent HTTP proxy gzip re-encoding from altering byte offsets.
+    request.headers['Accept-Encoding'] = 'identity';
     if (resumeFrom > 0) request.headers['Range'] = 'bytes=$resumeFrom-';
 
     final streamed = await _client.send(request).timeout(
@@ -311,7 +365,7 @@ class DataInstaller {
 
     final status = streamed.statusCode;
     if (status == 416) {
-      // The partial file already covers the whole document.
+      // The partial file already covers (or exceeds) the remote document.
       await streamed.stream.drain<void>();
       return partial;
     }
@@ -326,11 +380,16 @@ class DataInstaller {
     final sink = partial.openWrite(mode: status == 206 ? FileMode.append : FileMode.write);
     var received = resumeFrom;
     try {
-      await for (final chunk in streamed.stream) {
+      await for (final chunk in streamed.stream.timeout(
+        const Duration(seconds: 45),
+        onTimeout: (sink) => sink.addError(
+          const DataInstallException('انٹرنیٹ کا رابطہ منقطع ہو گیا۔'),
+        ),
+      )) {
         if (_cancelled) throw const DataInstallException('ڈاؤن لوڈ منسوخ کر دیا گیا۔');
         sink.add(chunk);
         received += chunk.length;
-        if (received % (512 * 1024) < chunk.length || total <= 0) {
+        if (received % (256 * 1024) < chunk.length || total <= 0) {
           onProgress?.call(DataProgress(
             key: package.key,
             phase: 'ڈاؤن لوڈ',
@@ -341,6 +400,9 @@ class DataInstaller {
       }
     } finally {
       await sink.close();
+    }
+    if (lengthHeader != null && lengthHeader > 0 && received != total) {
+      throw const DataInstallException('ڈاؤن لوڈ نامکمل رہا، دوبارہ کوشش کی جا رہی ہے۔');
     }
     onProgress?.call(DataProgress(
       key: package.key,

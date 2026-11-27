@@ -48,10 +48,11 @@ from database_specs import (  # noqa: E402
 # 404. Keeping the tag fixed means the data release can be republished forever
 # (assets are replaced with --clobber) without apps noticing.
 DOWNLOAD_BASE_URLS = (
-    # Primary repository release (databases-v2) plus legacy Shia-Ai fallbacks.
+    # Primary ShiaVerse release (databases-v2) plus raw-assets fallback for
+    # uncompressed standalone files. Never fall back to legacy Shia-Ai releases,
+    # whose older .gz files had different schemas/checksums and corrupt `.part`
+    # Range-resume buffers!
     "https://github.com/mrghalibspcpu/ShiaVerse/releases/download/databases-v2/",
-    "https://github.com/mrghalibspcpu/Shia-Ai/releases/download/databases-v2/",
-    "https://github.com/mrghalibspcpu/Shia-Ai/releases/download/databases-v1/",
     "https://raw.githubusercontent.com/mrghalibspcpu/ShiaVerse/main/assets/",
 )
 DOWNLOAD_EXTENSION = ".gz"

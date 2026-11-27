@@ -121,12 +121,12 @@ class ManifestTests(unittest.TestCase):
     def test_download_settings_are_absolute_https_urls(self):
         download = self.manifest["download"]
         self.assertEqual(download["extension"], ".gz")
-        self.assertIn("/databases-v2/", download["base_urls"][0])
-        self.assertIn("/databases-v1/", download["base_urls"][2])
+        self.assertIn("/ShiaVerse/releases/download/databases-v2/", download["base_urls"][0])
         for url in download["base_urls"]:
             with self.subTest(url):
                 self.assertTrue(url.startswith("https://"))
                 self.assertTrue(url.endswith("/"))
+                self.assertNotIn("Shia-Ai", url)
 
     def test_app_bundle_carries_the_same_manifest(self):
         bundled = ROOT / "app" / "assets" / "database-manifest.json"

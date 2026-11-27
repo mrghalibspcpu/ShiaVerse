@@ -32,15 +32,15 @@ import 'widgets/last_seen_sheet.dart';
 import 'widgets/more_features.dart';
 import 'widgets/reading_hub.dart';
 
-/// Set once the 1.10 light-by-default rule has run on this phone.
+/// Set once the 1.30 dark-by-default rule has run on this phone.
 /// The first start of this version moves the reader to the dark look; a
 /// choice made afterwards in the settings is kept.
-const String _kDarkDefaultKey = 'dark_default_applied';
+const String _kDarkDefaultKey = 'dark_default_applied_v2';
 
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
   await SystemChrome.setEnabledSystemUIMode(SystemUiMode.edgeToEdge);
-  SystemChrome.setSystemUIOverlayStyle(SystemUiOverlayStyle.dark.copyWith(
+  SystemChrome.setSystemUIOverlayStyle(SystemUiOverlayStyle.light.copyWith(
     statusBarColor: Colors.transparent,
     systemNavigationBarColor: Colors.transparent,
     systemNavigationBarDividerColor: Colors.transparent,

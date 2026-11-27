@@ -2,8 +2,8 @@ name: shiaverse
 publish_to: "none"
 description: Offline Shia library — Quran, Mafatih al-Jinan, Sahifa Sajjadiyya & Alawiyya, Nahj al-Balagha, and 10 hadith books.
 # The number after + is Android versionCode. It must stay above the previous
-# 1.30.0 release (10043) so this APK installs as an update without uninstalling.
-version: 1.30.1+10044
+# 1.30.1 release (10044) so this APK installs as an update without uninstalling.
+version: 1.30.2+10045
 
 environment:
   sdk: ">=3.4.0 <4.0.0"

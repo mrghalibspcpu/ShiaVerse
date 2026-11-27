@@ -23,9 +23,9 @@ export 'text_utils.dart'
         relevanceScore;
 
 /// Bumped whenever the text stored in the index changes for the same books, so
-/// readers who already hold an index rebuild it. 10: the 1.30 Urdu corpus
-/// refresh replaces the 10 hadith translations and adds Sahifa Alawiyya.
-const int _searchIndexVersion = 10;
+/// readers who already hold an index rebuild it. 11: the Inzaal-ul-Quran
+/// audited Urdu translation & tafsir replaces the older Quran database.
+const int _searchIndexVersion = 11;
 
 /// Retired hadith databases removed in 1.30; deleted cleanly on upgrade.
 const List<String> _retiredDatabaseFiles = <String>[
@@ -386,8 +386,11 @@ class LibraryRepository {
             return (installed: true, needsIndexes: true);
           }
         }
-        // Stale pre-1.30 file (e.g. old alkafi.db or old hidaya.db): remove it
-        // so either bundled assets or DataInstaller installs the new edition.
+        // Stale pre-1.30 file (e.g. old alkafi.db, old hidaya.db, or old
+        // quran.db): remove it and drop its indexed marker so search rebuilds
+        // cleanly once DataInstaller fetches the new edition.
+        await prefs.remove(hashKey);
+        await prefs.remove(idxKey);
         await _removeDatabaseSidecars(output);
         try {
           await output.delete();

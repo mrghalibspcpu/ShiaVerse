@@ -21,8 +21,6 @@
     "extension": ".gz",
     "base_urls": [
       "https://github.com/mrghalibspcpu/ShiaVerse/releases/download/databases-v2/",
-      "https://github.com/mrghalibspcpu/Shia-Ai/releases/download/databases-v2/",
-      "https://github.com/mrghalibspcpu/Shia-Ai/releases/download/databases-v1/",
       "https://raw.githubusercontent.com/mrghalibspcpu/ShiaVerse/main/assets/"
     ]
   },
@@ -261,8 +259,8 @@
       "title_urdu": "قرآنِ کریم",
       "title_latin": "Al-Quran al-Karim",
       "record_label": "آیت",
-      "size_bytes": 16943104,
-      "sha256": "c09009ac4f3d592e8a841ce2a168adbe218f7cea82f41daa061f45d433632b5b",
+      "size_bytes": 11078656,
+      "sha256": "0d8f0fe6eb4eb2d2f66ffaa366eb5fa6bd888e92f2bb3c3cd6810a394f979968",
       "records": {
         "Quran": 6236,
         "ChapterProperty": 114

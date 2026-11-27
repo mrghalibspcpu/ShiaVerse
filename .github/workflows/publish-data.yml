@@ -90,35 +90,34 @@ jobs:
         env:
           GH_TOKEN: ${{ github.token }}
         run: |
-          gh release view "$TAG" --json assets \
-            --jq '.assets[] | "\(.name)\t\(.size)"' | sort | tee published-assets.txt
-          # Compare against the manifest, not a bare count: the release also
-          # keeps superseded assets from earlier corpus revisions (the app's
-          # pinned `databases-v2` tag is updated in place with --clobber), and
-          # a count of every *.gz in the release would flag those old files as
-          # a failure. What matters is that every file THIS manifest names is
-          # published with the right byte count.
+          mkdir -p verify-download
+          gh release download "$TAG" -p 'database-manifest.json' -D verify-download --clobber
+          for f in dist/*.gz; do
+            asset="$(basename "$f")"
+            gh release download "$TAG" -p "$asset" -D verify-download --clobber
+          done
           python3 - <<'PY'
+          import gzip
+          import hashlib
           import json
           import sys
+          from pathlib import Path
 
-          manifest = json.load(open('dist/database-manifest.json', encoding='utf-8'))
-          published = {}
-          for line in open('published-assets.txt', encoding='utf-8'):
-              name, _, size = line.rstrip('\n').partition('\t')
-              if name:
-                  published[name] = int(size or 0)
-          expected = [f"{entry['name']}.gz" for entry in manifest['databases']]
-          expected.append('database-manifest.json')
-          missing = [name for name in expected if name not in published]
-          empty = [name for name in expected if published.get(name, 0) <= 0]
-          print(f"{len(manifest['databases'])} databases in the manifest, "
-                f"{len(published)} assets in the release")
-          if missing:
-              print('MISSING:', ', '.join(missing))
-          if empty:
-              print('EMPTY:', ', '.join(empty))
-          if missing or empty:
-              sys.exit(1)
-          print('every database this manifest names is published')
+          manifest = json.load(open('verify-download/database-manifest.json', encoding='utf-8'))
+          for entry in manifest['databases']:
+              name = entry['name']
+              gz_path = Path('verify-download') / f'{name}.gz'
+              if not gz_path.is_file():
+                  print(f'MISSING: {gz_path.name}')
+                  sys.exit(1)
+              raw = gzip.decompress(gz_path.read_bytes())
+              digest = hashlib.sha256(raw).hexdigest()
+              if len(raw) != entry['size_bytes'] or digest != entry['sha256']:
+                  print(
+                      f'CORRUPT: {gz_path.name}: size={len(raw)} (expected {entry["size_bytes"]}), '
+                      f'sha256={digest} (expected {entry["sha256"]})'
+                  )
+                  sys.exit(1)
+              print(f'OK {gz_path.name}: {gz_path.stat().st_size:,} -> {len(raw):,} bytes ({digest[:12]}…)')
+          print(f'Verified all {len(manifest["databases"])} downloaded .gz assets + manifest byte-for-byte!')
           PY

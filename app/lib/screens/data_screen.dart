@@ -118,6 +118,9 @@ class _DataScreenState extends State<DataScreen> {
         missing,
         onProgress: _onProgress,
         onPackageInstalled: (package) => unawaited(_afterInstall(package)),
+        onPackageFailed: (package, _) {
+          if (mounted) setState(() => _progress.remove(package.key));
+        },
       );
       if (!mounted) return;
       setState(() {
@@ -127,7 +130,11 @@ class _DataScreenState extends State<DataScreen> {
       _showMessage('ڈاؤن لوڈ مکمل ہو گیا۔');
     } catch (error) {
       if (!mounted) return;
-      setState(() => _error = error.toString());
+      setState(() {
+        _installed = _installedKeys();
+        _progress.clear();
+        _error = error.toString();
+      });
     } finally {
       if (mounted) setState(() => _working = false);
     }
