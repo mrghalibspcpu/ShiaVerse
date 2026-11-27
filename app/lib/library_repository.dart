@@ -150,12 +150,15 @@ class LibraryRepository {
 
   void _bumpCatalog() => catalogVersion.value++;
 
+  static void _noopProgress(double _, String __) {}
+
   Future<void> initialize({
-    required void Function(double progress, String message) onProgress,
+    void Function(double progress, String message)? onProgress,
     /// When false the (slow) full-text index is skipped and `ensureSearchIndex`
     /// builds it in the background. Books stay readable either way.
     bool buildSearchIndex = true,
   }) async {
+    final report = onProgress ?? _noopProgress;
     if (_initialized) return;
     final appDatabasePath = await getDatabasesPath();
     _databaseDirectory = p.join(appDatabasePath, 'shia_library');
@@ -173,7 +176,7 @@ class LibraryRepository {
     for (var i = 0; i < BookDefinition.all.length; i++) {
       final book = BookDefinition.all[i];
       final spec = manifestSpecs[book.fileName];
-      final result = await _ensureLocalCopy(book, i, onProgress, prefs: prefs, spec: spec);
+      final result = await _ensureLocalCopy(book, i, report, prefs: prefs, spec: spec);
       if (result.installed) {
         _installed.add(book.key);
         if (result.needsIndexes) newlyInstalled.add(book);
@@ -204,7 +207,7 @@ class LibraryRepository {
     await _ensureSearchDocsSchema(_searchDatabase!);
     await _createFtsTable(_searchDatabase!, ifNotExists: true);
     if (buildSearchIndex) {
-      await _refreshSearchIndex(onProgress);
+      await _refreshSearchIndex(report);
       _searchReady = true;
       indexProgress.value = const IndexBuildState.done();
     } else {
