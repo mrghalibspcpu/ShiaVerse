@@ -1,15 +1,21 @@
 # ShiaVerse
 
-## Current release: 1.29.0+10042
+## Current release: 1.31.0+10046
 
-This update removes Khamenei from the **دینی مسائل** picker while keeping its
-catalog entry for compatibility; refreshes Mafatih and Sahifa from Drive with an
-offline-safe, atomic upgrade for installed copies; expands Daily Study to
-multiple library books; keeps Xplore controls within system safe areas; improves
-the resizable hourly home widget; removes Quran's page-jump field while
-preserving Surah/Ayah navigation; and presents **مناسبات** as an interactive
-3D monthly calendar. See
-[`docs/shiaverse-1-29-update.md`](docs/shiaverse-1-29-update.md) for data hashes,
+**عیون اخبار الرضا (ع)** joins the shelf as the eleventh hadith book (954
+narrations in 70 chapter groups across two volumes), and **قرآنِ کریم** ships the
+Inzaal-ul-Quran edition with its audited Urdu translation and tafsir. The home
+page now paints a three-stop gradient instead of the light wallpaper photograph,
+the reader's redundant «تصدیق کے لیے اصل سرکاری صفحہ» heading is gone, and the
+mini prayer location row is tappable end to end with an animated beacon — plus a
+one-time location prompt for installs that only ever stored an IP or fallback
+fix. **روزانہ مطالعہ** gains shelf grouping, search, a typed plan length, adding
+or removing books without losing progress, and a day picker that opens any plan
+day's portion. The Tasbeeh dial's buttons are symmetric on their ring, its
+progress ring eases to each value, and a completed wird flashes once. Prayer
+alerts gain a **CC0 1.0** vocal Short Azan (15.6 s) as the default sound with the
+soft chime still selectable, remembered, and previewable. See
+[`docs/shiaverse-1-31-update.md`](docs/shiaverse-1-31-update.md) for data hashes,
 layout behavior, and migration details.
 
 ## Historical update: 1.24 — the lens plate, a third marja, the notes in their place
@@ -577,9 +583,9 @@ downloads each database on demand:
 5. `LibraryRepository.refreshAfterInstall()` picks the new book up and appends it
    to the search index without rebuilding what is already there.
 
-Books can also be bundled at build time (see below). ShiaVerse 1.29 bundles
-Mafatih and Sahifa; their pinned hashes replace stale installed copies on first
-launch after the update. For other books, an existing local file is left alone,
+Books can also be bundled at build time (see below). ShiaVerse 1.31 bundles
+Mafatih, Sahifa Sajjadiyya, and Sahifa Alawiyya; their pinned hashes replace
+stale installed copies on first launch after the update. For other books, an existing local file is left alone,
 and a missing book stays available for download instead of failing the app.
 
 Publish the corpus once per change:
