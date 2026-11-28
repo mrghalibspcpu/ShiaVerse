@@ -1,8 +1,57 @@
+import 'dart:io';
+
 import 'package:flutter_test/flutter_test.dart';
 import 'package:shiaverse/astro/prayer_calculator.dart';
+import 'package:shiaverse/services/alerts.dart';
 import 'package:shiaverse/services/prayer_notifications.dart';
 
 void main() {
+  group('notification channels', () {
+    test('every sound and vibration combination has its own channel', () {
+      final ids = <String>{
+        for (final vibration in <bool>[false, true]) ...<String>[
+          PrayerNotifications.prayerChannelId(
+            sound: false,
+            vibration: vibration,
+            mode: PrayerSoundMode.chime,
+          ),
+          for (final mode in PrayerSoundMode.values)
+            PrayerNotifications.prayerChannelId(
+              sound: true,
+              vibration: vibration,
+              mode: mode,
+            ),
+        ],
+      };
+      // A silent channel, a chime channel, and a short-Azan channel, each in a
+      // vibrating and a quiet edition: six channels, all distinct.
+      expect(ids, <String>{
+        'prayer_silent_quiet',
+        'prayer_silent_vibrate',
+        'prayer_sound_quiet',
+        'prayer_sound_vibrate',
+        'prayer_short_azan_quiet',
+        'prayer_short_azan_vibrate',
+      });
+    });
+
+    test('the short Azan is the default sound and carries a real file', () {
+      expect(PrayerSoundMode.shortAzan.rawResource, 'shiaverse_short_azan');
+      expect(PrayerSoundMode.shortAzan.assetPath, 'audio/azan_short.wav');
+      expect(PrayerSoundMode.fromWire('short_azan'), PrayerSoundMode.shortAzan);
+      expect(PrayerSoundMode.fromWire('chime'), PrayerSoundMode.chime);
+      expect(PrayerSoundMode.fromWire(null), PrayerSoundMode.chime);
+      // Both copies ship: the notification channel plays the raw resource and
+      // the in-app preview plays the bundled asset.
+      final raw = File('android/app/src/main/res/raw/shiaverse_short_azan.wav');
+      final asset = File('assets/audio/azan_short.wav');
+      expect(raw.existsSync(), isTrue, reason: 'the channel needs its raw resource');
+      expect(asset.existsSync(), isTrue, reason: 'the preview needs the asset');
+      expect(raw.lengthSync(), greaterThan(200000));
+      expect(raw.lengthSync(), asset.lengthSync());
+    });
+  });
+
   group('PrayerReminderPlanner', () {
     const offset = Duration(hours: 5);
     const latitude = 33.6844;

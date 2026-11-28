@@ -4,6 +4,7 @@ import 'package:flutter_local_notifications/flutter_local_notifications.dart';
 import 'package:timezone/timezone.dart' as tz;
 
 import '../astro/prayer_calculator.dart';
+import 'alerts.dart';
 
 /// One native alarm, expressed as an absolute UTC instant. Prayer times in the
 /// calculator are location wall-clock values, so the controller converts them
@@ -134,19 +135,29 @@ class PrayerNotifications {
     final android = _android;
     if (android == null) return;
     // Android 8+ fixes sound/vibration on a channel once it is first created.
-    // Prepare all four preference combinations so a changed setting takes
-    // effect immediately without trying to mutate a user's existing channel.
-    for (final sound in <bool>[false, true]) {
-      for (final vibration in <bool>[false, true]) {
-        final id = _channelId(sound, vibration);
+    // Prepare every sound/vibration combination so switching between silent,
+    // soft chime, and short Azan takes effect immediately without mutating a
+    // user's existing channel.
+    for (final vibration in <bool>[false, true]) {
+      await android.createNotificationChannel(
+        AndroidNotificationChannel(
+          prayerChannelId(sound: false, vibration: vibration, mode: PrayerSoundMode.chime),
+          'نماز کی یاد دہانی (خاموش)',
+          description: 'نماز کے اوقات پر ShiaVerse کی اطلاع',
+          importance: Importance.max,
+          playSound: false,
+          enableVibration: vibration,
+        ),
+      );
+      for (final mode in PrayerSoundMode.values) {
         await android.createNotificationChannel(
           AndroidNotificationChannel(
-            id,
-            'نماز کی یاد دہانی',
+            prayerChannelId(sound: true, vibration: vibration, mode: mode),
+            'نماز کی یاد دہانی (${mode.labelUrdu})',
             description: 'نماز کے اوقات پر ShiaVerse کی اطلاع',
             importance: Importance.max,
-            playSound: sound,
-            sound: sound ? const RawResourceAndroidNotificationSound('shiaverse_prayer_chime') : null,
+            playSound: true,
+            sound: RawResourceAndroidNotificationSound(mode.rawResource),
             enableVibration: vibration,
           ),
         );
@@ -205,12 +216,14 @@ class PrayerNotifications {
     required List<PrayerReminder> reminders,
     required bool enabled,
     required bool soundEnabled,
+    required PrayerSoundMode soundMode,
     required bool hapticsEnabled,
   }) {
     final current = _queue.then<void>((_) => _synchronize(
           reminders: reminders,
           enabled: enabled,
           soundEnabled: soundEnabled,
+          soundMode: soundMode,
           hapticsEnabled: hapticsEnabled,
         ));
     _queue = current.catchError((Object _) {});
@@ -221,6 +234,7 @@ class PrayerNotifications {
     required List<PrayerReminder> reminders,
     required bool enabled,
     required bool soundEnabled,
+    required PrayerSoundMode soundMode,
     required bool hapticsEnabled,
   }) async {
     try {
@@ -232,18 +246,24 @@ class PrayerNotifications {
       final scheduleMode = exact
           ? AndroidScheduleMode.exactAllowWhileIdle
           : AndroidScheduleMode.inexactAllowWhileIdle;
-      final channel = _channelId(soundEnabled, hapticsEnabled);
+      final channel = prayerChannelId(
+        sound: soundEnabled,
+        vibration: hapticsEnabled,
+        mode: soundMode,
+      );
       final details = NotificationDetails(
         android: AndroidNotificationDetails(
           channel,
-          'نماز کی یاد دہانی',
+          soundEnabled
+              ? 'نماز کی یاد دہانی (${soundMode.labelUrdu})'
+              : 'نماز کی یاد دہانی (خاموش)',
           channelDescription: 'نماز کے اوقات پر ShiaVerse کی اطلاع',
           importance: Importance.max,
           priority: Priority.high,
           category: AndroidNotificationCategory.alarm,
           playSound: soundEnabled,
           sound: soundEnabled
-              ? const RawResourceAndroidNotificationSound('shiaverse_prayer_chime')
+              ? RawResourceAndroidNotificationSound(soundMode.rawResource)
               : null,
           enableVibration: hapticsEnabled,
           onlyAlertOnce: true,
@@ -284,6 +304,17 @@ class PrayerNotifications {
     }
   }
 
-  static String _channelId(bool sound, bool vibration) =>
-      'prayer_${sound ? 'sound' : 'silent'}_${vibration ? 'vibrate' : 'quiet'}';
+  /// The channel a reminder uses for one sound/vibration combination.
+  ///
+  /// Android 8+ freezes a channel's sound the first time it is created, so the
+  /// id carries the sound: switching from the soft chime to the short Azan must
+  /// land on a different channel instead of mutating the reader's own.
+  static String prayerChannelId({
+    required bool sound,
+    required bool vibration,
+    required PrayerSoundMode mode,
+  }) {
+    final soundTag = !sound ? 'silent' : (mode == PrayerSoundMode.shortAzan ? 'short_azan' : 'sound');
+    return 'prayer_${soundTag}_${vibration ? 'vibrate' : 'quiet'}';
+  }
 }

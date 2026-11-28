@@ -2,11 +2,31 @@ import 'package:audioplayers/audioplayers.dart';
 import 'package:flutter/foundation.dart';
 import 'package:flutter/services.dart';
 
+/// Which sound a prayer-time alert plays when sound is enabled.
+enum PrayerSoundMode {
+  chime('نرم چائم', 'shiaverse_prayer_chime', 'audio/chime_prayer.wav'),
+  shortAzan('مختصر اذان', 'shiaverse_short_azan', 'audio/azan_short.wav');
+
+  const PrayerSoundMode(this.labelUrdu, this.rawResource, this.assetPath);
+
+  final String labelUrdu;
+  final String rawResource;
+  final String assetPath;
+
+  static PrayerSoundMode fromWire(String? value) =>
+      value == 'short_azan' ? PrayerSoundMode.shortAzan : PrayerSoundMode.chime;
+
+  String get wire =>
+      this == PrayerSoundMode.shortAzan ? 'short_azan' : 'chime';
+}
+
 /// What the prayer watcher and the tasbeeh counter do to the phone: a sound
 /// and a buzz. An interface, so the controllers can be tested (and can run on
 /// a device that can do neither) without touching a platform channel.
 abstract class FeedbackSink {
   Future<void> playPrayerChime();
+  Future<void> playShortAzan();
+  Future<void> stopPrayerAudio();
   Future<void> playCompleteChime();
   Future<void> playTap();
   Future<void> tapHaptic();
@@ -20,8 +40,13 @@ class SilentFeedback implements FeedbackSink {
   const SilentFeedback();
 
   @override
-  @override
   Future<void> playPrayerChime() async {}
+
+  @override
+  Future<void> playShortAzan() async {}
+
+  @override
+  Future<void> stopPrayerAudio() async {}
 
   @override
   @override
@@ -58,6 +83,7 @@ class Alerts implements FeedbackSink {
   bool _ready = false;
 
   static const String prayerChime = 'audio/chime_prayer.wav';
+  static const String shortAzan = 'audio/azan_short.wav';
   static const String completeChime = 'audio/chime_complete.wav';
   static const String tapClick = 'audio/tap_click.wav';
 
@@ -86,6 +112,27 @@ class Alerts implements FeedbackSink {
     try {
       await _chimePlayer.stop();
       await _chimePlayer.play(AssetSource(prayerChime));
+    } catch (_) {
+      return;
+    }
+  }
+
+  @override
+  Future<void> playShortAzan() async {
+    await _prepare();
+    try {
+      await _chimePlayer.stop();
+      await _chimePlayer.play(AssetSource(shortAzan));
+    } catch (_) {
+      return;
+    }
+  }
+
+  @override
+  Future<void> stopPrayerAudio() async {
+    if (!_ready) return;
+    try {
+      await _chimePlayer.stop();
     } catch (_) {
       return;
     }

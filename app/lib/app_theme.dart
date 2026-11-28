@@ -283,9 +283,10 @@ class DashboardPalette {
 
   static const DashboardPalette _light = DashboardPalette(
     backdrop: LinearGradient(
-      begin: Alignment.topCenter,
-      end: Alignment.bottomCenter,
-      colors: <Color>[Color(0x00FFFFFF), Color(0x00FFFFFF)],
+      begin: Alignment.topLeft,
+      end: Alignment.bottomRight,
+      stops: <double>[0, 0.48, 1],
+      colors: <Color>[Color(0xFFE5EFEA), Color(0xFFF3EFE4), Color(0xFFE7DFCF)],
     ),
     gold: kGold,
     goldSoft: Color(0xFFEBD5A8),
@@ -323,9 +324,10 @@ class DashboardPalette {
 
   static const DashboardPalette _dark = DashboardPalette(
     backdrop: LinearGradient(
-      begin: Alignment.topCenter,
-      end: Alignment.bottomCenter,
-      colors: <Color>[Color(0xFF0B1211), Color(0xFF16211F)],
+      begin: Alignment.topLeft,
+      end: Alignment.bottomRight,
+      stops: <double>[0, 0.52, 1],
+      colors: <Color>[Color(0xFF0A1D19), Color(0xFF0B1514), Color(0xFF141122)],
     ),
     gold: Color(0xFFE4BC70),
     goldSoft: Color(0xFFF0D9A8),

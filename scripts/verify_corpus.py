@@ -159,6 +159,21 @@ def sahifa_alawiyya_checks(db: sqlite3.Connection) -> None:
     check("sahifa alawiyya: every supplication has an https source URL", unlinked == 0, f"{unlinked} unlinked")
 
 
+def uyun_checks(db: sqlite3.Connection) -> None:
+    hadiths = db.execute('SELECT COUNT(*) FROM "دعائیں"').fetchone()[0]
+    groups = db.execute('SELECT COUNT(*) FROM "ماخذ_گروہ"').fetchone()[0]
+    check("uyun: 954 narrations", hadiths == 954, f"{hadiths}")
+    check("uyun: 70 chapter groups", groups == 70, f"{groups}")
+    missing = db.execute(
+        'SELECT COUNT(*) FROM "دعائیں" WHERE trim("عربی_متن") = \'\' OR trim("اردو_ترجمہ") = \'\''
+    ).fetchone()[0]
+    check("uyun: every narration has Arabic and Urdu", missing == 0, f"{missing} missing")
+    unlinked = db.execute(
+        'SELECT COUNT(*) FROM "دعائیں" WHERE "ماخذ_کا_رابطہ" NOT LIKE \'https://%\''
+    ).fetchone()[0]
+    check("uyun: every narration has an https source URL", unlinked == 0, f"{unlinked} unlinked")
+
+
 def run_checks(collected: list[tuple[object, Path]], expected_count: int) -> None:
     records = build_records(collected)  # type: ignore[arg-type]
     check(
@@ -172,7 +187,9 @@ def run_checks(collected: list[tuple[object, Path]], expected_count: int) -> Non
     for spec, path in collected:
         connection = sqlite3.connect(f"file:{path.resolve().as_posix()}?mode=ro", uri=True)
         try:
-            if spec.source == "hadith":  # type: ignore[attr-defined]
+            if spec.key == "uyun":  # type: ignore[attr-defined]
+                uyun_checks(connection)
+            elif spec.source == "hadith":  # type: ignore[attr-defined]
                 hadith_checks(connection, spec.name)  # type: ignore[attr-defined]
             elif spec.source == "quran":  # type: ignore[attr-defined]
                 quran_checks(connection)

@@ -658,17 +658,6 @@ class _SourceLink extends StatelessWidget {
         crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [
           Text(
-            'تصدیق کے لیے اصل سرکاری صفحہ',
-            textDirection: TextDirection.rtl,
-            textAlign: TextAlign.right,
-            style: TextStyle(
-              color: accent,
-              fontSize: 12 * fontScale,
-              fontWeight: FontWeight.bold,
-            ),
-          ),
-          const SizedBox(height: 4),
-          Text(
             url,
             textDirection: TextDirection.ltr,
             textAlign: TextAlign.left,

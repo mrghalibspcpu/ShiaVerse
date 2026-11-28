@@ -120,6 +120,20 @@ EXTRA_DATABASES: tuple[DatabaseSpec, ...] = (
         ),
         record_label="مضمون",
     ),
+    DatabaseSpec(
+        name="uyun_akhbar_al_rida_urdu.db",
+        source="hadith",
+        key="uyun",
+        title_urdu="عیون اخبار الرضا (ع)",
+        title_latin="Uyun Akhbar al-Rida (a)",
+        origin="assets",
+        tables={
+            "دعائیں": {"دعا_نمبر", "گروہ_شناخت", "ماخذ_کا_عنوان", "عربی_متن", "اردو_ترجمہ", "ماخذ_کا_رابطہ"},
+            "ماخذ_گروہ": {"گروہ_شناخت", "مطبوعہ_صفحہ_آغاز", "پہلی_دعا_کا_نمبر", "آخری_دعا_کا_نمبر", "دعاؤں_کی_تعداد"},
+        },
+        indexes=('CREATE INDEX IF NOT EXISTS shia_uyun_group ON "دعائیں"("گروہ_شناخت", "دعا_نمبر")',),
+        record_label="حدیث نمبر",
+    ),
     DatabaseSpec(name="Sahifa_Sajjadiyya_full_runtime.sqlite3", source="sahifa", key="sahifa",
         title_urdu="صحیفہ سجادیہ", title_latin="Sahifa Sajjadiyya", origin="assets",
         tables={"saheefa_data": {"ID", "oe", "t_id", "t_no", "p_no", "p_format", "p_text"},
@@ -138,11 +152,10 @@ EXTRA_DATABASES: tuple[DatabaseSpec, ...] = (
                 "categories": {"category_id", "category_title_ur"}},
         indexes=("CREATE INDEX IF NOT EXISTS shia_fatwa_category ON question_answers(category_id)",),
         record_label="مسئلہ") for key, title, latin in (
-            ("khamenei", "فتاویٰ — آیت اللہ خامنہ ای", "Khamenei Urdu Fatawa"),
             ("sistani", "فتاویٰ — آیت اللہ سیستانی", "Sistani Urdu Fatawa"),
             # 1.24: the marja's own 8,104 Urdu question/answer pairs, rebuilt
             # from the Drive archive by scripts/build_najafi_fatawa_db.py into
-            # the same two-table shape as the other two marjas.
+            # the same two-table shape as Sistani.
             ("najafi", "فتاویٰ — آیت اللہ حافظ بشیر حسین نجفی",
              "Hafiz Bashir Hussain Najafi Urdu Fatawa"))),
     DatabaseSpec(

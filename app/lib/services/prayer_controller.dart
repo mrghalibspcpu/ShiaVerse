@@ -135,6 +135,7 @@ class PrayerController extends ChangeNotifier with WidgetsBindingObserver {
 
   bool _alertsEnabled = true;
   bool _soundEnabled = true;
+  PrayerSoundMode _soundMode = PrayerSoundMode.shortAzan;
   bool _hapticsEnabled = true;
   String _presetKey = 'jafari';
   LocationProblem? _locationProblem;
@@ -192,6 +193,7 @@ class PrayerController extends ChangeNotifier with WidgetsBindingObserver {
   bool get loadingLocation => _loadingLocation;
   bool get alertsEnabled => _alertsEnabled;
   bool get soundEnabled => _soundEnabled;
+  PrayerSoundMode get soundMode => _soundMode;
   bool get hapticsEnabled => _hapticsEnabled;
   String get presetKey => _presetKey;
 
@@ -264,7 +266,10 @@ class PrayerController extends ChangeNotifier with WidgetsBindingObserver {
       case LocationSource.ip:
       case LocationSource.fallback:
         final improved = await _quietRefresh(minimumMoveKm: 0);
-        if (!improved && stored.source == LocationSource.fallback && _live) {
+        if (!improved && _live && identical(_location, stored)) {
+          await _promptLocationOnceIfUnanswered(stored);
+        }
+        if (!improved && stored.source == LocationSource.fallback && _live && identical(_location, stored)) {
           final ip = await PrayerLocations.fromIp();
           if (ip != null && identical(_location, stored)) {
             final named = PrayerLocations.localiseIp(ip);
@@ -272,6 +277,29 @@ class PrayerController extends ChangeNotifier with WidgetsBindingObserver {
             await _applyLocation(named, persist: false);
           }
         }
+    }
+  }
+
+  /// Ensures upgrading users whose previous launch stored an IP or default
+  /// fallback without ever answering the OS location prompt are asked once on
+  /// startup so prayer times lock onto their exact town automatically.
+  Future<void> _promptLocationOnceIfUnanswered(PrayerLocation stored) async {
+    const promptKey = 'location_install_prompt_v1';
+    try {
+      final prefs = await SharedPreferences.getInstance();
+      if (prefs.getBool(promptKey) == true) return;
+      await prefs.setBool(promptKey, true);
+      final fix = await PrayerLocations.deviceFix(interactive: true);
+      _locationProblem = fix.problem;
+      if (fix.location != null && identical(_location, stored)) {
+        await PrayerLocations.store(fix.location!);
+        await _applyLocation(fix.location!, persist: false);
+        unawaited(_refinePlaceName());
+      } else {
+        notifyListeners();
+      }
+    } catch (_) {
+      return;
     }
   }
 
@@ -465,10 +493,32 @@ class PrayerController extends ChangeNotifier with WidgetsBindingObserver {
   void setSoundEnabled(bool value) {
     if (_soundEnabled == value) return;
     _soundEnabled = value;
+    if (!value) unawaited(_feedback.stopPrayerAudio());
     unawaited(_savePreferences());
     unawaited(_syncNativePrayerNotifications());
     notifyListeners();
   }
+
+  void setSoundMode(PrayerSoundMode mode) {
+    if (_soundMode == mode) return;
+    _soundMode = mode;
+    if (!_soundEnabled) _soundEnabled = true;
+    unawaited(_savePreferences());
+    unawaited(_syncNativePrayerNotifications());
+    notifyListeners();
+  }
+
+  /// Plays the currently selected prayer alert audio once as a preview.
+  Future<void> previewAlertSound([PrayerSoundMode? overrideMode]) async {
+    final mode = overrideMode ?? _soundMode;
+    if (mode == PrayerSoundMode.shortAzan) {
+      await _feedback.playShortAzan();
+    } else {
+      await _feedback.playPrayerChime();
+    }
+  }
+
+  Future<void> stopAlertSoundPreview() => _feedback.stopPrayerAudio();
 
   void setHapticsEnabled(bool value) {
     if (_hapticsEnabled == value) return;
@@ -553,6 +603,7 @@ class PrayerController extends ChangeNotifier with WidgetsBindingObserver {
       reminders: reminders,
       enabled: _alertsEnabled,
       soundEnabled: _soundEnabled,
+      soundMode: _soundMode,
       hapticsEnabled: _hapticsEnabled,
     );
   }
@@ -610,7 +661,11 @@ class PrayerController extends ChangeNotifier with WidgetsBindingObserver {
         // open. Avoid firing the same chime twice; keep the in-process
         // feedback as a fallback when Android notifications are not allowed.
         if (_alertsEnabled && _soundEnabled && !_nativeNotificationsGranted) {
-          unawaited(_feedback.playPrayerChime());
+          unawaited(
+            _soundMode == PrayerSoundMode.shortAzan
+                ? _feedback.playShortAzan()
+                : _feedback.playPrayerChime(),
+          );
         }
         if (_hapticsEnabled && (!_alertsEnabled || !_nativeNotificationsGranted)) {
           unawaited(_feedback.prayerHaptic());
@@ -651,6 +706,9 @@ class PrayerController extends ChangeNotifier with WidgetsBindingObserver {
         final stored = Uri.splitQueryString(raw);
         _alertsEnabled = stored['alerts'] != 'false';
         _soundEnabled = stored['sound'] != 'false';
+        _soundMode = stored.containsKey('mode')
+            ? PrayerSoundMode.fromWire(stored['mode'])
+            : PrayerSoundMode.shortAzan;
         _hapticsEnabled = stored['haptics'] != 'false';
       }
     } catch (_) {
@@ -666,7 +724,7 @@ class PrayerController extends ChangeNotifier with WidgetsBindingObserver {
       await prefs.setString(hijriStorage, _hijriAdjustment?.toString() ?? 'auto');
       await prefs.setString(
         alertStorage,
-        'alerts=$_alertsEnabled&sound=$_soundEnabled&haptics=$_hapticsEnabled',
+        'alerts=$_alertsEnabled&sound=$_soundEnabled&mode=${_soundMode.wire}&haptics=$_hapticsEnabled',
       );
     } catch (_) {
       return;

@@ -112,8 +112,18 @@ void main() {
       final manifestFile = File('assets/database-manifest.json');
       expect(manifestFile.existsSync(), isTrue);
       final catalog = DataCatalog.parse(manifestFile.readAsStringSync());
-      expect(catalog.packages, hasLength(BookDefinition.all.length));
+      // 1.31 ships Uyun Akhbar al-Rida and retires the Khamenei fatawa file,
+      // so the manifest grounds 19 of the 20 catalogue entries. Khamenei stays
+      // in `BookDefinition.all` only so old bookmarks keep resolving.
+      expect(catalog.packages, hasLength(19));
+      expect(catalog.byKey('uyun'), isNotNull);
+      expect(catalog.byKey('khamenei'), isNull);
+      final bookKeys = BookDefinition.all.map((book) => book.key).toSet();
+      for (final pkg in catalog.packages) {
+        expect(bookKeys, contains(pkg.key), reason: '${pkg.key} is not a catalogue book');
+      }
       for (final book in BookDefinition.all) {
+        if (book.key == 'khamenei') continue;
         final pkg = catalog.byKey(book.key);
         expect(pkg, isNotNull, reason: 'Missing manifest entry for ${book.key}');
         expect(pkg!.fileName, book.fileName);

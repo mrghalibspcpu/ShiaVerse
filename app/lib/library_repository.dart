@@ -23,9 +23,9 @@ export 'text_utils.dart'
         relevanceScore;
 
 /// Bumped whenever the text stored in the index changes for the same books, so
-/// readers who already hold an index rebuild it. 11: the Inzaal-ul-Quran
-/// audited Urdu translation & tafsir replaces the older Quran database.
-const int _searchIndexVersion = 11;
+/// readers who already hold an index rebuild it. 12: inzalulquran.db replaces
+/// the older Quran database and Uyun Akhbar al-Rida joins the Hadith corpus.
+const int _searchIndexVersion = 12;
 
 /// Retired hadith databases removed in 1.30; deleted cleanly on upgrade.
 const List<String> _retiredDatabaseFiles = <String>[
@@ -668,7 +668,7 @@ class LibraryRepository {
     // Sahifa and the fatawa are read through `_extraQuery`, which filters
     // (Sahifa hides everything after the 83 duas). Count what the indexer will
     // actually walk — `_indexBook` asserts the two numbers agree.
-    if (book.source == CorpusSource.sahifa || book.source == CorpusSource.fatwa) {
+    if (book.source == CorpusSource.sahifa || book.source == CorpusSource.fatwa || book.key == 'uyun') {
       final rows = await source.rawQuery('SELECT COUNT(*) AS count FROM (${_extraQuery(book)})');
       return (rows.first['count'] as int?) ?? 0;
     }
@@ -698,7 +698,7 @@ class LibraryRepository {
   }
 
   String _sourceTable(BookDefinition book) => switch (book.source) {
-        CorpusSource.hadith => 'Parags',
+        CorpusSource.hadith => book.key == 'uyun' ? '"دعائیں"' : 'Parags',
         CorpusSource.quran => 'Quran',
         CorpusSource.dua => 'M_items',
         CorpusSource.balagha => 'balaghatext',
@@ -862,6 +862,9 @@ class LibraryRepository {
       case CorpusSource.fatwa:
         return source.rawQuery('${_extraQuery(book)} ORDER BY record_id LIMIT ? OFFSET ?', [_indexPageSize, offset]);
       case CorpusSource.hadith:
+        if (book.key == 'uyun') {
+          return source.rawQuery('${_extraQuery(book)} ORDER BY record_id LIMIT ? OFFSET ?', [_indexPageSize, offset]);
+        }
         return source.rawQuery('''
           SELECT COALESCE(NULLIF(p.ID, ''), -p.rowid) AS record_id, p.txt AS arabic, p.Secid AS section_id,
                  p.paganum AS page_no, p.mean AS urdu,
@@ -942,13 +945,17 @@ class LibraryRepository {
         CorpusSource.fatwa => const [
             'CREATE INDEX IF NOT EXISTS shia_fatwa_category ON question_answers(category_id)',
           ],
-        CorpusSource.hadith => const [
-            'CREATE INDEX IF NOT EXISTS shia_parags_record ON Parags(ID)',
-            'CREATE INDEX IF NOT EXISTS shia_parags_section ON Parags(Secid)',
-            'CREATE INDEX IF NOT EXISTS shia_sections_chapter ON Sections(Chapid)',
-            'CREATE INDEX IF NOT EXISTS shia_sections_record ON Sections(Secid)',
-            'CREATE INDEX IF NOT EXISTS shia_chapters_record ON Chaps(cid)',
-          ],
+        CorpusSource.hadith => book.key == 'uyun'
+            ? const [
+                'CREATE INDEX IF NOT EXISTS shia_uyun_group ON "دعائیں"("گروہ_شناخت", "دعا_نمبر")',
+              ]
+            : const [
+                'CREATE INDEX IF NOT EXISTS shia_parags_record ON Parags(ID)',
+                'CREATE INDEX IF NOT EXISTS shia_parags_section ON Parags(Secid)',
+                'CREATE INDEX IF NOT EXISTS shia_sections_chapter ON Sections(Chapid)',
+                'CREATE INDEX IF NOT EXISTS shia_sections_record ON Sections(Secid)',
+                'CREATE INDEX IF NOT EXISTS shia_chapters_record ON Chaps(cid)',
+              ],
         CorpusSource.quran => const [
             'CREATE INDEX IF NOT EXISTS shia_quran_record ON Quran(ID)',
             'CREATE INDEX IF NOT EXISTS shia_quran_chapter_verse ON Quran(chapter, verse)',
@@ -1071,6 +1078,20 @@ class LibraryRepository {
   /// quiz pages. Those were never part of the book and used to appear as
   /// numbered entries 84 and up.
   String _extraQuery(BookDefinition book) {
+    if (book.key == 'uyun') {
+      return '''
+        SELECT d."دعا_نمبر" AS record_id, d."گروہ_شناخت" AS section_id,
+          d."عربی_متن" AS arabic, d."اردو_ترجمہ" AS urdu,
+          TRIM(SUBSTR(d."ماخذ_کا_عنوان", INSTR(d."ماخذ_کا_عنوان", '—') + 1,
+            INSTR(d."ماخذ_کا_عنوان", '— حدیث ') - INSTR(d."ماخذ_کا_عنوان", '—') - 1)) AS section_title,
+          CASE WHEN d."ماخذ_کا_عنوان" LIKE 'جلد 2%' THEN 'جلد ۲' ELSE 'جلد ۱' END AS chapter_title,
+          d."ماخذ_کا_رابطہ" AS source_url,
+          TRIM(SUBSTR(d."ماخذ_کا_عنوان", INSTR(d."ماخذ_کا_عنوان", '— حدیث ') + 2)) AS locator,
+          CASE WHEN d."ماخذ_کا_عنوان" LIKE 'جلد 2%' THEN 2 ELSE 1 END AS container_type,
+          d."گروہ_شناخت" AS container_id
+        FROM "دعائیں" AS d
+      ''';
+    }
     if (book.key == 'sahifa_alawiyya') {
       return '''
         SELECT d."دعا_نمبر" AS record_id, d."دعا_نمبر" AS section_id,
@@ -1142,6 +1163,12 @@ class LibraryRepository {
       return db.rawQuery('SELECT section_id AS ID, section_id AS cid, section_title AS title '
           'FROM (${_extraQuery(book)}) GROUP BY section_id ORDER BY section_id');
     }
+    if (book.key == 'uyun') {
+      return const <Map<String, Object?>>[
+        <String, Object?>{'ID': 1, 'cid': 1, 'title': 'جلد ۱ — عیون اخبار الرضا (ع)'},
+        <String, Object?>{'ID': 2, 'cid': 2, 'title': 'جلد ۲ — عیون اخبار الرضا (ع)'},
+      ];
+    }
     return db.rawQuery('SELECT ID, cid, title FROM Chaps ORDER BY cid');
   }
 
@@ -1161,6 +1188,19 @@ class LibraryRepository {
     if (book.source == CorpusSource.sahifa || book.source == CorpusSource.fatwa) {
       return db.rawQuery('SELECT section_id AS ID, section_title AS title, section_id AS Chapid, section_id AS Secid '
           'FROM (${_extraQuery(book)}) WHERE section_id = ? GROUP BY section_id', [chapterId]);
+    }
+    if (book.key == 'uyun') {
+      return db.rawQuery('''
+        SELECT g."گروہ_شناخت" AS ID,
+               TRIM(SUBSTR(d."ماخذ_کا_عنوان", INSTR(d."ماخذ_کا_عنوان", '—') + 1,
+                 INSTR(d."ماخذ_کا_عنوان", '— حدیث ') - INSTR(d."ماخذ_کا_عنوان", '—') - 1)) AS title,
+               CASE WHEN d."ماخذ_کا_عنوان" LIKE 'جلد 2%' THEN 2 ELSE 1 END AS Chapid,
+               g."گروہ_شناخت" AS Secid
+        FROM "ماخذ_گروہ" AS g
+        JOIN "دعائیں" AS d ON d."دعا_نمبر" = g."پہلی_دعا_کا_نمبر"
+        WHERE (CASE WHEN d."ماخذ_کا_عنوان" LIKE 'جلد 2%' THEN 2 ELSE 1 END) = ?
+        ORDER BY g."پہلی_دعا_کا_نمبر"
+      ''', [chapterId]);
     }
     return db.rawQuery(
       'SELECT ID, title, Chapid, Secid FROM Sections WHERE Chapid = ? ORDER BY Secid',
@@ -1211,7 +1251,7 @@ class LibraryRepository {
     if (book.source == CorpusSource.encyclopedia) {
       return _encyclopediaArticlePassages(db, sectionId);
     }
-    if (book.source == CorpusSource.sahifa || book.source == CorpusSource.fatwa) {
+    if (book.source == CorpusSource.sahifa || book.source == CorpusSource.fatwa || book.key == 'uyun') {
       final rows = await db.rawQuery('SELECT * FROM (${_extraQuery(book)}) WHERE section_id = ? ORDER BY record_id', [sectionId]);
       final passages = rows.map(Passage.fromMap).toList();
       return book.key == 'sahifa_alawiyya' ? _splitAlawiyyaPassages(passages) : passages;
@@ -1928,6 +1968,14 @@ class LibraryRepository {
         return rows.isEmpty ? null : _asInt(rows.first['cid']);
       }
       if (book.source == CorpusSource.hadith) {
+        if (book.key == 'uyun') {
+          final rows = await db.rawQuery(
+            'SELECT CASE WHEN "ماخذ_کا_عنوان" LIKE \'جلد 2%\' THEN 2 ELSE 1 END AS cid '
+            'FROM "دعائیں" WHERE "گروہ_شناخت" = ? LIMIT 1',
+            [sectionId],
+          );
+          return rows.isEmpty ? null : _asInt(rows.first['cid']);
+        }
         final rows = await db.rawQuery(
           'SELECT Chapid AS cid FROM Sections WHERE Secid = ? LIMIT 1',
           [sectionId],
@@ -2104,6 +2152,13 @@ class LibraryRepository {
         ''', [recordId]);
         return rows.isEmpty ? null : Passage.fromMap(rows.first);
       case CorpusSource.hadith:
+        if (book.key == 'uyun') {
+          final rows = await db.rawQuery(
+            'SELECT * FROM (${_extraQuery(book)}) WHERE record_id = ? LIMIT 1',
+            [recordId],
+          );
+          return rows.isEmpty ? null : Passage.fromMap(rows.first);
+        }
         final rows = await db.rawQuery('''
           SELECT COALESCE(NULLIF(p.ID, ''), -p.rowid) AS record_id, p.txt AS arabic, p.Secid AS section_id,
                  p.paganum AS page_no, p.mean AS urdu,
@@ -2348,6 +2403,16 @@ class LibraryRepository {
             if (_asInt(row['record_id']) != null) _asInt(row['record_id'])!: Passage.fromMap(row),
         };
       case CorpusSource.hadith:
+        if (book.key == 'uyun') {
+          final rows = await db.rawQuery(
+            'SELECT * FROM (${_extraQuery(book)}) WHERE record_id IN ($placeholders)',
+            ids,
+          );
+          return {
+            for (final row in rows)
+              if (_asInt(row['record_id']) != null) _asInt(row['record_id'])!: Passage.fromMap(row),
+          };
+        }
         final rows = await db.rawQuery('''
           SELECT COALESCE(NULLIF(p.ID, ''), -p.rowid) AS record_id, p.txt AS arabic, p.Secid AS section_id,
                  p.paganum AS page_no, p.mean AS urdu,

@@ -44,17 +44,19 @@ void main() {
   });
 
   group('corpus catalogue', () {
-    test('lists the 10 hadith books plus the curated collections', () {
+    test('lists the 11 hadith books plus the curated collections', () {
       // Nine extra collections: Quran, Mafatih, Sahifa Sajjadiyya, Sahifa
       // Alawiyya, Nahj al-Balagha, the curated encyclopaedia and the three marjas.
-      expect(BookDefinition.all, hasLength(19));
-      expect(BookDefinition.hadithBooks, hasLength(10));
+      expect(BookDefinition.all, hasLength(20));
+      expect(BookDefinition.hadithBooks, hasLength(11));
       expect(
         BookDefinition.newBooks.map((book) => book.key),
         <String>['athna_ashari_encyclopedia'],
       );
       expect(BookDefinition.byKey('athna_ashari_encyclopedia')?.source,
           CorpusSource.encyclopedia);
+      expect(BookDefinition.byKey('uyun')?.fileName, 'uyun_akhbar_al_rida_urdu.db');
+      expect(BookDefinition.byKey('uyun')?.source, CorpusSource.hadith);
       expect(BookDefinition.byKey('tahzeeb'), isNull);
       expect(BookDefinition.byKey('wasail'), isNull);
       expect(BookDefinition.byKey('mezan'), isNull);

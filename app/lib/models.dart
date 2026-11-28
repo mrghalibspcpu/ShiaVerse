@@ -164,7 +164,7 @@ class BookDefinition {
       source: CorpusSource.balagha,
       recordLabel: 'فقرا',
     ),
-    // The curated encyclopaedia. It is appended LAST on purpose:
+    // The curated encyclopaedia. It is appended near the end on purpose:
     // `bookAccent` indexes this list, so no existing book changes colour, and
     // every older key/file name stays exactly where it was.
     BookDefinition(
@@ -175,6 +175,15 @@ class BookDefinition {
       description: 'ائمہ، اہل بیت، عقائد، عبادات، کتب اور مقامات — اردو ویکیپیڈیا کے منتخب ۵۷۴ مضامین، اصل ماخذ کے ساتھ',
       source: CorpusSource.encyclopedia,
       recordLabel: 'مضمون',
+    ),
+    BookDefinition(
+      key: 'uyun',
+      fileName: 'uyun_akhbar_al_rida_urdu.db',
+      titleUrdu: 'عیون اخبار الرضا (ع)',
+      titleLatin: 'Uyun Akhbar al-Rida (a)',
+      description: 'شیخ صدوق — امام علی بن موسیٰ الرضا (ع) کی احادیث، مناظرات اور سوانح',
+      source: CorpusSource.hadith,
+      recordLabel: 'حدیث نمبر',
     ),
   ];
 

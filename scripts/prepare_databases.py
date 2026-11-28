@@ -219,8 +219,14 @@ def verify_against_manifest(records: list[dict]) -> None:
 
 def write_manifest(records: list[dict]) -> None:
     totals = {
-        "hadith_records": sum(r["records"].get("Parags", 0) for r in records),
-        "sections": sum(r["records"].get("Sections", 0) for r in records),
+        "hadith_records": sum(
+            r["records"].get("Parags", 0) + (r["records"].get("دعائیں", 0) if r["source"] == "hadith" else 0)
+            for r in records
+        ),
+        "sections": sum(
+            r["records"].get("Sections", 0) + (r["records"].get("ماخذ_گروہ", 0) if r["source"] == "hadith" else 0)
+            for r in records
+        ),
         "chapters": sum(r["records"].get("Chaps", 0) for r in records),
         "quran_verses": sum(r["records"].get("Quran", 0) for r in records),
         "quran_surahs": sum(r["records"].get("ChapterProperty", 0) for r in records),
@@ -228,7 +234,9 @@ def write_manifest(records: list[dict]) -> None:
         "dua_lines": sum(r["records"].get("Lines", 0) for r in records),
         "balagha_paragraphs": sum(r["records"].get("balaghatext", 0) for r in records),
         "sahifa_rows": sum(r["records"].get("saheefa_data", 0) for r in records),
-        "sahifa_alawiyya_duas": sum(r["records"].get("دعائیں", 0) for r in records),
+        "sahifa_alawiyya_duas": sum(
+            r["records"].get("دعائیں", 0) for r in records if r["key"] == "sahifa_alawiyya"
+        ),
         "fatwa_answers": sum(r["records"].get("question_answers", 0) for r in records),
         "balagha_sections": sum(r["records"].get("balaghatoc", 0) for r in records),
     }

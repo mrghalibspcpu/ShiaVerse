@@ -18,7 +18,8 @@ class FullSearchCoverageTests(unittest.TestCase):
             'dua': 'SELECT m.rowid AS record_id, m.M_name AS section_title',
             'balagha': 'WHERE x.Type BETWEEN 1 AND 3\n          ORDER BY record_id',
             'sahifa': 'SELECT d.ID AS record_id, d.t_id * 10000',
-            'sahifa_alawiyya': 'SELECT d."دعا_نمبر" AS record_id',
+            'sahifa_alawiyya': "'صحیفہ علویہ' AS chapter_title",
+            'uyun': "CASE WHEN d.\"ماخذ_کا_عنوان\" LIKE 'جلد 2%' THEN 'جلد ۲'",
             'fatwa': 'SELECT q.rowid AS record_id, q.category_id AS section_id',
             'encyclopedia': 'FROM sections AS s JOIN articles AS a ON a.id = s.article_id\n          ORDER BY s.article_id, s.ordinal',
         }
@@ -26,17 +27,19 @@ class FullSearchCoverageTests(unittest.TestCase):
             self.assertEqual(len(collected), 19)
             for spec, path in collected:
                 with self.subTest(book=spec.key), sqlite3.connect(path) as db:
-                    frag_key = 'sahifa_alawiyya' if spec.key == 'sahifa_alawiyya' else spec.source
+                    frag_key = spec.key if spec.key in {'sahifa_alawiyya', 'uyun'} else spec.source
                     query = extract_query(fragments[frag_key])
-                    if spec.source in {'sahifa', 'fatwa'}:
+                    if spec.source in {'sahifa', 'fatwa'} or spec.key == 'uyun':
                         query = f'SELECT * FROM ({query}) ORDER BY record_id LIMIT ? OFFSET ?'
                     expected = sum(db.execute(f'SELECT COUNT(*) FROM "{t}"').fetchone()[0]
-                                   for t in ({'hadith': ['Parags'], 'quran': ['Quran'], 'dua': ['M_items'],
+                                   for t in ({'hadith': ['دعائیں'] if spec.key == 'uyun' else ['Parags'], 'quran': ['Quran'], 'dua': ['M_items'],
                                               'balagha': ['balaghatext'],
                                               'sahifa': ['دعائیں'] if spec.key == 'sahifa_alawiyya' else ['saheefa_data'],
                                               'fatwa': ['question_answers'],
                                               'encyclopedia': ['sections']}[spec.source]))
-                    if spec.source == 'hadith':
+                    if spec.key == 'uyun':
+                        expected = db.execute('SELECT COUNT(*) FROM "دعائیں"').fetchone()[0]
+                    elif spec.source == 'hadith':
                         expected = db.execute("SELECT COUNT(*) FROM Parags WHERE LENGTH(COALESCE(txt,''))>0 OR LENGTH(COALESCE(mean,''))>0").fetchone()[0]
                     elif spec.source == 'balagha':
                         expected = db.execute(
@@ -69,6 +72,8 @@ class FullSearchCoverageTests(unittest.TestCase):
                         )
                     elif spec.key == 'sahifa_alawiyya':
                         self.assertEqual(len(seen), 160)
+                    elif spec.key == 'uyun':
+                        self.assertEqual(len(seen), 954)
                     elif spec.source == 'sahifa':
                         # The refreshed Drive edition contains just the 83
                         # reader sections, with Arabic and Urdu rows.

@@ -4,8 +4,8 @@
   "sqlite_page_size": 1024,
   "database_count": 19,
   "totals": {
-    "hadith_records": 36159,
-    "sections": 4250,
+    "hadith_records": 37113,
+    "sections": 4320,
     "chapters": 86,
     "quran_verses": 6236,
     "quran_surahs": 114,
@@ -14,7 +14,7 @@
     "balagha_paragraphs": 3742,
     "sahifa_rows": 2103,
     "sahifa_alawiyya_duas": 160,
-    "fatwa_answers": 10151,
+    "fatwa_answers": 9723,
     "balagha_sections": 810
   },
   "download": {
@@ -176,6 +176,20 @@
       }
     },
     {
+      "name": "uyun_akhbar_al_rida_urdu.db",
+      "key": "uyun",
+      "source": "hadith",
+      "title_urdu": "عیون اخبار الرضا (ع)",
+      "title_latin": "Uyun Akhbar al-Rida (a)",
+      "record_label": "حدیث نمبر",
+      "size_bytes": 19525632,
+      "sha256": "5420397510ef550f7b7d8eb81f355635d2dfe1147ad401ea563361db55621984",
+      "records": {
+        "دعائیں": 954,
+        "ماخذ_گروہ": 70
+      }
+    },
+    {
       "name": "athna_ashari_encyclopedia.db",
       "key": "athna_ashari_encyclopedia",
       "source": "encyclopedia",
@@ -192,20 +206,6 @@
         "imams": 12,
         "topics": 6,
         "related_articles": 4093
-      }
-    },
-    {
-      "name": "khamenei_urdu_fatawa.sqlite",
-      "key": "khamenei",
-      "source": "fatwa",
-      "title_urdu": "فتاویٰ — آیت اللہ خامنہ ای",
-      "title_latin": "Khamenei Urdu Fatawa",
-      "record_label": "مسئلہ",
-      "size_bytes": 1490944,
-      "sha256": "5053c5cc2cf81a60ab9603aac744d70064f1c310eaee36c1841c807127bdd45e",
-      "records": {
-        "question_answers": 428,
-        "categories": 35
       }
     },
     {
@@ -259,8 +259,8 @@
       "title_urdu": "قرآنِ کریم",
       "title_latin": "Al-Quran al-Karim",
       "record_label": "آیت",
-      "size_bytes": 11078656,
-      "sha256": "0d8f0fe6eb4eb2d2f66ffaa366eb5fa6bd888e92f2bb3c3cd6810a394f979968",
+      "size_bytes": 11702272,
+      "sha256": "37d2a411a8c51bbf6bd4a5443adfa5e8cbba04a8541ab46a048db1d1ed19c13d",
       "records": {
         "Quran": 6236,
         "ChapterProperty": 114

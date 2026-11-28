@@ -6,6 +6,7 @@ import '../app_theme.dart';
 import '../astro/compass_math.dart' show compassPointUrdu;
 import '../astro/prayer_calculator.dart';
 import '../astro/prayer_format.dart';
+import '../services/alerts.dart';
 import '../services/city_index.dart';
 import '../services/place_names.dart';
 import '../services/prayer_controller.dart';
@@ -1177,18 +1178,60 @@ class _AlertControls extends StatelessWidget {
           const SizedBox(height: 6),
           _ToggleRow(
             icon: Icons.notifications_active_outlined,
-            label: 'نماز کے وقت اطلاع (چائم + وائبریشن)',
+            label: 'نماز کے وقت اطلاع (آواز + وائبریشن)',
             value: controller.alertsEnabled,
             onChanged: controller.setAlertsEnabled,
             palette: palette,
           ),
           _ToggleRow(
             icon: Icons.volume_up_outlined,
-            label: 'اذان بجائے نرم چائم',
+            label: 'اطلاع کی آواز (اذان / چائم)',
             value: controller.soundEnabled,
             onChanged: controller.setSoundEnabled,
             palette: palette,
           ),
+          if (controller.soundEnabled) ...<Widget>[
+            const SizedBox(height: 6),
+            Row(
+              children: <Widget>[
+                Expanded(
+                  child: GlassChip(
+                    key: const ValueKey<String>('prayer-sound-short-azan'),
+                    label: 'مختصر اذان (CC0)',
+                    icon: Icons.mosque_outlined,
+                    selected: controller.soundMode == PrayerSoundMode.shortAzan,
+                    tone: palette.gold,
+                    onTap: () {
+                      controller.setSoundMode(PrayerSoundMode.shortAzan);
+                      unawaited(controller.previewAlertSound(PrayerSoundMode.shortAzan));
+                    },
+                  ),
+                ),
+                const SizedBox(width: 8),
+                Expanded(
+                  child: GlassChip(
+                    key: const ValueKey<String>('prayer-sound-chime'),
+                    label: 'نرم چائم',
+                    icon: Icons.music_note_outlined,
+                    selected: controller.soundMode == PrayerSoundMode.chime,
+                    onTap: () {
+                      controller.setSoundMode(PrayerSoundMode.chime);
+                      unawaited(controller.previewAlertSound(PrayerSoundMode.chime));
+                    },
+                  ),
+                ),
+                const SizedBox(width: 6),
+                IconButton(
+                  key: const ValueKey<String>('prayer-sound-preview'),
+                  tooltip: 'آواز سنیں',
+                  visualDensity: VisualDensity.compact,
+                  icon: Icon(Icons.play_circle_outline_rounded, color: palette.accent, size: 22),
+                  onPressed: () => unawaited(controller.previewAlertSound()),
+                ),
+              ],
+            ),
+            const SizedBox(height: 4),
+          ],
           _ToggleRow(
             icon: Icons.vibration,
             label: 'وائبریشن (ہلکا جھٹکا)',

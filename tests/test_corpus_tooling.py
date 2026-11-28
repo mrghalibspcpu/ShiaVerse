@@ -22,10 +22,10 @@ import prepare_databases  # noqa: E402
 class DatabaseSpecTests(unittest.TestCase):
     def test_catalogue_covers_nineteen_databases(self):
         self.assertEqual(len(DATABASES), 19)
-        self.assertEqual(len([spec for spec in DATABASES if spec.source == "hadith"]), 10)
+        self.assertEqual(len([spec for spec in DATABASES if spec.source == "hadith"]), 11)
         # 9 curated standalones (Quran, Mafatih, Sahifa Sajjadiyya, Sahifa
-        # Alawiyya, Nahj al-Balagha, the three marjas, and the encyclopaedia)
-        # — 10 hadith books + 9 = 19.
+        # Alawiyya, Uyun Akhbar al-Rida, Nahj al-Balagha, Sistani, Najafi,
+        # and the encyclopaedia) — 10 bundled hadith books + 9 = 19.
         self.assertEqual(len(EXTRA_DATABASES), 9)
 
     def test_keys_and_file_names_are_unique(self):
@@ -96,8 +96,8 @@ class ManifestTests(unittest.TestCase):
 
     def test_totals_match_the_known_corpus(self):
         totals = self.manifest["totals"]
-        self.assertEqual(totals["hadith_records"], 36159)
-        self.assertEqual(totals["sections"], 4250)
+        self.assertEqual(totals["hadith_records"], 37113)
+        self.assertEqual(totals["sections"], 4320)
         self.assertEqual(totals["chapters"], 86)
         self.assertEqual(totals["quran_verses"], 6236)
         self.assertEqual(totals["quran_surahs"], 114)
@@ -201,7 +201,7 @@ class ValidationTests(unittest.TestCase):
                         # encyclopaedia edition is built from a 79 MB corpus
                         # whose pages are kept at 4 KiB (1 KiB pages would
                         # inflate it), like the other large collections.
-                        4096 if spec.source in {"sahifa", "fatwa", "encyclopedia"} else TARGET_PAGE_SIZE
+                        4096 if (spec.source in {"sahifa", "fatwa", "encyclopedia"} or spec.key == "uyun") else TARGET_PAGE_SIZE
                     )
                     self.assertEqual(
                         str(connection.execute("PRAGMA encoding").fetchone()[0]).lower(), "utf-8"
@@ -215,7 +215,7 @@ class ValidationTests(unittest.TestCase):
                     }
                     # Uploaded databases stay byte-for-byte intact; their
                     # reader indexes are added to the app-storage copy at install.
-                    for statement in (() if spec.source in {"sahifa", "fatwa"} else spec.indexes):
+                    for statement in (() if (spec.source in {"sahifa", "fatwa"} or spec.key == "uyun") else spec.indexes):
                         name = statement.split("shia_", 1)[1].split(" ")[0]
                         self.assertIn(f"shia_{name}", indexes)
                 finally:

@@ -184,6 +184,8 @@ void main() {
     final controller = await controllerFor(() => DateTime.utc(2026, 10, 15, 6));
     expect(controller.alertsEnabled, isTrue);
     expect(controller.soundEnabled, isTrue);
+    expect(controller.soundMode, PrayerSoundMode.shortAzan);
+    controller.setSoundMode(PrayerSoundMode.chime);
     controller.setAlertsEnabled(false);
     controller.setSoundEnabled(false);
     controller.setHapticsEnabled(false);
@@ -197,6 +199,7 @@ void main() {
     await reloaded.start();
     expect(reloaded.alertsEnabled, isFalse);
     expect(reloaded.soundEnabled, isFalse);
+    expect(reloaded.soundMode, PrayerSoundMode.chime);
     expect(reloaded.hapticsEnabled, isFalse);
   });
 

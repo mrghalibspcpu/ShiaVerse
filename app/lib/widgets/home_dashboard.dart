@@ -768,36 +768,215 @@ class _MiniPrayerCard extends StatelessWidget {
     );
   }
 
-  /// The place, centred, with the "find me" button at the end of the row.
+  /// The place, centred, with an eye-catching animated location beacon at the
+  /// end of the row so readers immediately see they can tap to update location.
   Widget _placeRow(BuildContext context, PrayerController controller) {
-    return Row(
-      children: <Widget>[
-        const Icon(Icons.place, size: 11, color: Colors.white),
-        const SizedBox(width: 3),
-        Expanded(
-          child: Text(
-            controller.loadingLocation ? 'مقام تلاش کیا جا رہا ہے…' : controller.location.label,
-            maxLines: 1,
-            overflow: TextOverflow.ellipsis,
-            textAlign: TextAlign.center,
-            style: _onSky(11, weight: FontWeight.w700, height: 1.25),
+    return GestureDetector(
+      key: const ValueKey<String>('mini-prayer-location-row'),
+      behavior: HitTestBehavior.opaque,
+      onTap: controller.loadingLocation ? null : () => unawaited(refreshLocationWithFeedback(context)),
+      child: Row(
+        children: <Widget>[
+          _AnimatedLocationBeacon(
+            loading: controller.loadingLocation,
+            hasProblem: controller.locationProblem != null,
+            needsExactFix: controller.location.source != LocationSource.gps,
           ),
-        ),
-        GestureDetector(
-          behavior: HitTestBehavior.opaque,
-          onTap: controller.loadingLocation ? null : () => unawaited(refreshLocationWithFeedback(context)),
-          child: Tooltip(
-            message: controller.locationProblem?.messageUrdu ?? 'میرا موجودہ مقام معلوم کریں',
-            child: Icon(
-              controller.loadingLocation
-                  ? Icons.sync
-                  : (controller.locationProblem != null ? Icons.location_disabled : Icons.my_location),
-              size: 14,
-              color: Colors.white,
+          const SizedBox(width: 4),
+          Expanded(
+            child: Text(
+              controller.loadingLocation ? 'مقام تلاش کیا جا رہا ہے…' : controller.location.label,
+              maxLines: 1,
+              overflow: TextOverflow.ellipsis,
+              textAlign: TextAlign.center,
+              style: _onSky(11, weight: FontWeight.w700, height: 1.25),
             ),
           ),
-        ),
-      ],
+          Tooltip(
+            message: controller.locationProblem?.messageUrdu ?? 'میرا موجودہ مقام معلوم کریں',
+            child: _AnimatedLocationActionIcon(
+              loading: controller.loadingLocation,
+              hasProblem: controller.locationProblem != null,
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+/// Pulsing location pin on the mini prayer card so the user's eye catches the
+/// active city / GPS status and knows tapping refreshes the exact location.
+class _AnimatedLocationBeacon extends StatefulWidget {
+  const _AnimatedLocationBeacon({
+    required this.loading,
+    required this.hasProblem,
+    required this.needsExactFix,
+  });
+
+  final bool loading;
+  final bool hasProblem;
+  final bool needsExactFix;
+
+  @override
+  State<_AnimatedLocationBeacon> createState() => _AnimatedLocationBeaconState();
+}
+
+class _AnimatedLocationBeaconState extends State<_AnimatedLocationBeacon>
+    with SingleTickerProviderStateMixin {
+  late final AnimationController _pulse = AnimationController(
+    vsync: this,
+    duration: const Duration(milliseconds: 1600),
+  );
+
+  @override
+  void didChangeDependencies() {
+    super.didChangeDependencies();
+    _syncAnimation();
+  }
+
+  @override
+  void didUpdateWidget(_AnimatedLocationBeacon oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    _syncAnimation();
+  }
+
+  void _syncAnimation() {
+    final reduce = MediaQuery.disableAnimationsOf(context);
+    if (!reduce && !_pulse.isAnimating) {
+      _pulse.repeat();
+    } else if (reduce && _pulse.isAnimating) {
+      _pulse.stop();
+    }
+  }
+
+  @override
+  void dispose() {
+    _pulse.dispose();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final accent = widget.hasProblem
+        ? const Color(0xFFFFB74D)
+        : (widget.needsExactFix ? const Color(0xFFF0D9A8) : const Color(0xFF69F0AE));
+    return RepaintBoundary(
+      child: AnimatedBuilder(
+        animation: _pulse,
+        builder: (context, _) {
+          final t = _pulse.value;
+          final wave = 0.5 - 0.5 * math.cos(t * 2 * math.pi);
+          final haloRadius = 6.0 + 4.5 * t;
+          final haloOpacity = (1.0 - t) * (widget.needsExactFix || widget.hasProblem ? 0.65 : 0.42);
+          final bounce = -1.4 * wave;
+          return SizedBox(
+            key: const ValueKey<String>('mini-location-beacon'),
+            width: 18,
+            height: 18,
+            child: Stack(
+              alignment: Alignment.center,
+              children: <Widget>[
+                Container(
+                  width: haloRadius * 2,
+                  height: haloRadius * 2,
+                  decoration: BoxDecoration(
+                    shape: BoxShape.circle,
+                    border: Border.all(
+                      color: accent.withValues(alpha: haloOpacity.clamp(0.0, 1.0)),
+                      width: 1.2,
+                    ),
+                    color: accent.withValues(alpha: (haloOpacity * 0.35).clamp(0.0, 1.0)),
+                  ),
+                ),
+                Transform.translate(
+                  offset: Offset(0, bounce),
+                  child: Icon(
+                    Icons.location_on_rounded,
+                    size: 13,
+                    color: accent,
+                  ),
+                ),
+              ],
+            ),
+          );
+        },
+      ),
+    );
+  }
+}
+
+class _AnimatedLocationActionIcon extends StatefulWidget {
+  const _AnimatedLocationActionIcon({
+    required this.loading,
+    required this.hasProblem,
+  });
+
+  final bool loading;
+  final bool hasProblem;
+
+  @override
+  State<_AnimatedLocationActionIcon> createState() => _AnimatedLocationActionIconState();
+}
+
+class _AnimatedLocationActionIconState extends State<_AnimatedLocationActionIcon>
+    with SingleTickerProviderStateMixin {
+  late final AnimationController _spin = AnimationController(
+    vsync: this,
+    duration: const Duration(milliseconds: 1800),
+  );
+
+  @override
+  void didChangeDependencies() {
+    super.didChangeDependencies();
+    _sync();
+  }
+
+  @override
+  void didUpdateWidget(_AnimatedLocationActionIcon oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    _sync();
+  }
+
+  void _sync() {
+    final reduce = MediaQuery.disableAnimationsOf(context);
+    if (!reduce && !_spin.isAnimating) {
+      _spin.repeat();
+    } else if (reduce && _spin.isAnimating) {
+      _spin.stop();
+    }
+  }
+
+  @override
+  void dispose() {
+    _spin.dispose();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return RepaintBoundary(
+      child: AnimatedBuilder(
+        animation: _spin,
+        builder: (context, _) {
+          final t = _spin.value;
+          final scale = widget.loading ? 1.0 : (0.92 + 0.14 * (0.5 - 0.5 * math.cos(t * 2 * math.pi)));
+          final angle = widget.loading ? t * 2 * math.pi : 0.0;
+          return Transform.rotate(
+            angle: angle,
+            child: Transform.scale(
+              scale: scale,
+              child: Icon(
+                widget.loading
+                    ? Icons.sync_rounded
+                    : (widget.hasProblem ? Icons.location_searching_rounded : Icons.my_location_rounded),
+                size: 14.5,
+                color: widget.hasProblem ? const Color(0xFFFFD54F) : Colors.white,
+              ),
+            ),
+          );
+        },
+      ),
     );
   }
 }
@@ -1358,13 +1537,45 @@ class _TasbeehDial extends StatefulWidget {
   State<_TasbeehDial> createState() => _TasbeehDialState();
 }
 
-class _TasbeehDialState extends State<_TasbeehDial> {
+class _TasbeehDialState extends State<_TasbeehDial> with SingleTickerProviderStateMixin {
   bool _locked = false;
+
+  /// The one-shot completion flash. Finite on purpose: a repeating pulse would
+  /// keep the dial repainting for as long as the app is open.
+  late final AnimationController _milestone = AnimationController(
+    vsync: this,
+    duration: const Duration(milliseconds: 760),
+  );
+  int? _seenCompletion;
 
   @override
   void initState() {
     super.initState();
     unawaited(_loadLock());
+  }
+
+  @override
+  void didChangeDependencies() {
+    super.didChangeDependencies();
+    final tick = TasbeehScope.of(context).completionTick;
+    final previous = _seenCompletion;
+    _seenCompletion = tick;
+    // A stored count from an earlier session is not a completion: only a tick
+    // that changes while the dial is on screen flashes.
+    if (previous != null &&
+        tick != previous &&
+        !MediaQuery.disableAnimationsOf(context)) {
+      // Not during the build phase: start the flash at the end of this frame.
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        if (mounted) _milestone.forward(from: 0);
+      });
+    }
+  }
+
+  @override
+  void dispose() {
+    _milestone.dispose();
+    super.dispose();
   }
 
   Future<void> _loadLock() async {
@@ -1420,9 +1631,23 @@ class _TasbeehDialState extends State<_TasbeehDial> {
             dimension: diameter,
             child: Stack(
               children: <Widget>[
-                Positioned.fill(
-                  child: CustomPaint(
-                    painter: _DialPainter(palette: palette, progress: controller.progress),
+                 Positioned.fill(
+                  // The ring eases to each new value instead of jumping, and the
+                  // milestone flash rides on top of it.
+                  child: TweenAnimationBuilder<double>(
+                    tween: Tween<double>(begin: controller.progress, end: controller.progress),
+                    duration: const Duration(milliseconds: 340),
+                    curve: Curves.easeOutCubic,
+                    builder: (context, animatedProgress, _) => AnimatedBuilder(
+                      animation: _milestone,
+                      builder: (context, _) => CustomPaint(
+                        painter: _DialPainter(
+                          palette: palette,
+                          progress: animatedProgress,
+                          flash: _milestone.value,
+                        ),
+                      ),
+                    ),
                   ),
                 ),
                 // The wird, along the top of the dial. Tap it to change it.
@@ -1470,7 +1695,7 @@ class _TasbeehDialState extends State<_TasbeehDial> {
                   child: _Bead(controller: controller, diameter: bead),
                 ),
                 Positioned(
-                  left: radius - sideButton / 2 - diameter * 0.36,
+                  left: radius - radius * 0.68 - sideButton / 2,
                   top: radius - sideButton / 2,
                   child: _DialRoundButton(
                     icon: Icons.add,
@@ -1482,14 +1707,14 @@ class _TasbeehDialState extends State<_TasbeehDial> {
                   ),
                 ),
                 Positioned(
-                  right: radius - sideButton / 2 - diameter * 0.36,
+                  right: radius - radius * 0.68 - sideButton / 2,
                   top: radius - sideButton / 2,
                   child: _DialRoundButton(
                     icon: _locked ? Icons.lock : Icons.restart_alt,
                     tooltip: _locked
                         ? 'ری سیٹ لاک ہے — کھولنے کے لیے دبا کر رکھیں'
                         : 'ری سیٹ (لاک کرنے کے لیے دبا کر رکھیں)',
-                    size: sideButton * 0.95,
+                    size: sideButton,
                     muted: _locked,
                     onTap: () => _tapReset(controller),
                     onLongPress: () => unawaited(_setLock(!_locked)),
@@ -1609,10 +1834,14 @@ class _Bead extends StatelessWidget {
 /// The dial's face: a brushed-metal disc with a gold rim, the turning marks of
 /// a real bead frame, and the progress ring around the bead.
 class _DialPainter extends CustomPainter {
-  _DialPainter({required this.palette, required this.progress});
+  _DialPainter({required this.palette, required this.progress, this.flash = 0});
 
   final DashboardPalette palette;
   final double progress;
+
+  /// 0→1 one-shot flash when a wird (or the whole Tasbeeh-e-Zahra sequence)
+  /// completes: a gold ring breathes outward from the bead once, then stops.
+  final double flash;
 
   @override
   void paint(Canvas canvas, Size size) {
@@ -1704,11 +1933,24 @@ class _DialPainter extends CustomPainter {
         ..strokeWidth = 3.2
         ..color = palette.gold,
     );
+
+    if (flash > 0) {
+      final t = flash.clamp(0.0, 1.0);
+      final wave = 1 - math.pow(1 - t, 2).toDouble();
+      canvas.drawCircle(
+        centre,
+        ring + wave * radius * 0.20,
+        Paint()
+          ..style = PaintingStyle.stroke
+          ..strokeWidth = 3.4 * (1 - t) + 0.6
+          ..color = palette.gold.withValues(alpha: (1 - t) * 0.55),
+      );
+    }
   }
 
   @override
   bool shouldRepaint(_DialPainter old) =>
-      old.progress != progress || old.palette != palette;
+      old.progress != progress || old.palette != palette || old.flash != flash;
 }
 
 /// A round button on the dial: cream with a gold ring, or filled emerald.

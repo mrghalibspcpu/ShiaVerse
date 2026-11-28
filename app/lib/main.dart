@@ -617,29 +617,20 @@ class HomeShellState extends State<HomeShell> {
     // Rebuild when a download finishes, so the dashboard's containers show the
     // new book immediately instead of after a manual refresh.
     final isDark = Theme.of(context).brightness == Brightness.dark;
+    final palette = DashboardPalette.of(context);
     return ValueListenableBuilder<int>(
       valueListenable: widget.library.catalogVersion,
       builder: (context, _, __) => AnnotatedRegion<SystemUiOverlayStyle>(
         value: (isDark ? SystemUiOverlayStyle.light : SystemUiOverlayStyle.dark)
             .copyWith(statusBarColor: Colors.transparent, systemNavigationBarColor: Colors.transparent),
         child: Scaffold(
-          backgroundColor: isDark ? null : const Color(0xFFF6F1E4),
-          body: Stack(
-            fit: StackFit.expand,
-            children: <Widget>[
-              if (!isDark)
-                Positioned.fill(
-                  child: Image.asset(
-                    'assets/images/home_light_wallpaper.jpg',
-                    key: const ValueKey<String>('home-light-wallpaper'),
-                    fit: BoxFit.cover,
-                    alignment: Alignment.topCenter,
-                    cacheWidth: 900,
-                    filterQuality: FilterQuality.medium,
-                  ),
-                ),
-              TickerMode(enabled: true, child: _homePage),
-            ],
+          backgroundColor: Colors.transparent,
+          body: DecoratedBox(
+            key: const ValueKey<String>('home-gradient-backdrop'),
+            decoration: BoxDecoration(gradient: palette.backdrop),
+            child: SizedBox.expand(
+              child: TickerMode(enabled: true, child: _homePage),
+            ),
           ),
           bottomNavigationBar: HomeDockBar(
             selected: null,

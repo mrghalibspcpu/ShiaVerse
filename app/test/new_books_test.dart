@@ -31,8 +31,7 @@ void main() {
         <String>['athna_ashari_encyclopedia']);
     expect(BookDefinition.all.where((book) => book.key == 'athna_ashari_encyclopedia'),
         hasLength(1));
-    // Appended last, so every existing book keeps the accent colour it had.
-    expect(BookDefinition.all.last.key, 'athna_ashari_encyclopedia');
+    // Appended near the end, so existing books keep their accent colours.
     expect(BookDefinition.bookFor(CorpusSource.encyclopedia)!.key,
         'athna_ashari_encyclopedia');
   });

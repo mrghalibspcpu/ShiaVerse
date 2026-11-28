@@ -156,32 +156,30 @@ void main() {
   /// falls back to its built-in lines.
   Widget homeScreen({LibraryRepository? library}) {
     final repository = library ?? LibraryRepository();
-    return Scaffold(
-      backgroundColor: const Color(0xFFF6F1E4),
-      body: Stack(
-        fit: StackFit.expand,
-        children: <Widget>[
-          Positioned.fill(
-            child: Image.asset(
-              'assets/images/home_light_wallpaper.jpg',
-              fit: BoxFit.cover,
-              alignment: Alignment.topCenter,
+    return Builder(
+      builder: (context) {
+        final palette = DashboardPalette.of(context);
+        return Scaffold(
+          backgroundColor: Colors.transparent,
+          body: DecoratedBox(
+            decoration: BoxDecoration(gradient: palette.backdrop),
+            child: SizedBox.expand(
+              child: SafeArea(
+                bottom: false,
+                child: HomeDashboard(
+                  library: repository,
+                  onSearch: () {},
+                  onOpenData: () {},
+                ),
+              ),
             ),
           ),
-          SafeArea(
-            bottom: false,
-            child: HomeDashboard(
-              library: repository,
-              onSearch: () {},
-              onOpenData: () {},
-            ),
+          bottomNavigationBar: HomeDockBar(
+            selected: null,
+            onSelected: (_) {},
           ),
-        ],
-      ),
-      bottomNavigationBar: HomeDockBar(
-        selected: null,
-        onSelected: (_) {},
-      ),
+        );
+      },
     );
   }
 
@@ -224,8 +222,18 @@ void main() {
       final prayerRowBottom = tester.getRect(find.byKey(const ValueKey<String>('home-prayer-row'))).bottom;
       expect(prayerBottom - prayerRowBottom, lessThan(10), reason: 'prayers belong at the foot of the sky');
       final momentBottom = tester.getRect(find.byKey(const ValueKey<String>('home-moment-card'))).bottom;
-      final dialTop = tester.getRect(find.byKey(const ValueKey<String>('home-tasbeeh'))).top;
+      final dialRect = tester.getRect(find.byKey(const ValueKey<String>('home-tasbeeh')));
+      final dialTop = dialRect.top;
       expect(dialTop - momentBottom, lessThan(14), reason: 'moment card should meet the dial');
+      // Verify the '+' and reset buttons sit symmetrically on the dial's 0.68r ring.
+      final plusCenter = tester.getCenter(find.byIcon(Icons.add));
+      final resetCenter = tester.getCenter(find.byIcon(Icons.restart_alt));
+      expect(plusCenter.dy, closeTo(dialRect.center.dy, 0.5));
+      expect(resetCenter.dy, closeTo(dialRect.center.dy, 0.5));
+      final ringRadius = (dialRect.width / 2) * 0.68;
+      expect((dialRect.center.dx - plusCenter.dx).abs(), closeTo(ringRadius, 0.5));
+      expect((resetCenter.dx - dialRect.center.dx).abs(), closeTo(ringRadius, 0.5));
+      expect(find.byKey(const ValueKey<String>('mini-location-beacon')), findsOneWidget);
       for (final item in HomeDockItem.values) {
         expect(find.text(item.label), findsOneWidget, reason: item.label);
       }
@@ -503,6 +511,8 @@ void main() {
       onAction: actions.add,
     )));
     await settle(tester);
+    // 1.31: the home page is a gradient, not a wallpaper photograph.
+    expect(find.byKey(const ValueKey<String>('home-gradient-backdrop')), findsOneWidget);
     await tester.tap(find.byKey(const ValueKey<String>('dock-settings')));
     await settle(tester);
     expect(find.byType(SettingsScreen), findsOneWidget);
@@ -520,11 +530,21 @@ void main() {
     await installer.close();
   });
 
-  testWidgets('every default page palette is white while HomeShell paints its light wallpaper', (tester) async {
+  testWidgets('every default page palette stays white while Home paints its own gradient', (tester) async {
     await tester.pumpWidget(MaterialApp(theme: buildLightTheme(), home: Builder(builder: (context) {
       expect(Theme.of(context).scaffoldBackgroundColor, Colors.white);
       expect(GlassPalette.of(context).scaffold, Colors.white);
-      expect(DashboardPalette.of(context).backdrop.colors, everyElement(const Color(0x00FFFFFF)));
+      // 1.31 drops the light wallpaper image: the home page paints a three-stop
+      // gradient of its own, so its backdrop is no longer plain white.
+      final light = DashboardPalette.of(context).backdrop as LinearGradient;
+      expect(light.colors, hasLength(3));
+      expect(light.colors, isNot(everyElement(Colors.white)));
+      return const SizedBox.shrink();
+    })));
+    await tester.pumpWidget(MaterialApp(theme: buildDarkTheme(), home: Builder(builder: (context) {
+      final dark = DashboardPalette.of(context).backdrop as LinearGradient;
+      expect(dark.colors, hasLength(3));
+      expect(dark.colors.first, isNot(Colors.white));
       return const SizedBox.shrink();
     })));
     expect((await ReaderPreferences.load()).palette.background, Colors.white);

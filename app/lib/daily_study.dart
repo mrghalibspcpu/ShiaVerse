@@ -44,6 +44,7 @@ enum StudyTrack {
   manlahyahzur('من لا یحضره الفقیہ', 'کتابِ احادیث'),
   swab('ثواب الاعمال', 'کتابِ احادیث'),
   towheed('کتاب التوحید', 'کتابِ احادیث'),
+  uyun('عیون اخبار الرضا (ع)', 'کتابِ احادیث'),
 
   /// Khamenei remains in the data catalog for compatibility but is not listed
   /// in this new study picker, matching the visible دینی مسائل selection.
@@ -74,6 +75,7 @@ enum StudyTrack {
         StudyTrack.manlahyahzur => 'manlahyahzur',
         StudyTrack.swab => 'swab',
         StudyTrack.towheed => 'towheed',
+        StudyTrack.uyun => 'uyun',
         StudyTrack.sistani => 'sistani',
         StudyTrack.najafi => 'najafi',
         StudyTrack.encyclopedia => 'athna_ashari_encyclopedia',
@@ -90,6 +92,29 @@ enum StudyTrack {
   bool get isQuran => this == StudyTrack.quran;
   bool get isMafatih => this == StudyTrack.mafatih;
 
+  /// The shelf this track is read from. The picker groups and filters by it, so
+  /// twenty-one books stay findable on a phone.
+  StudyCategory get category => switch (this) {
+        StudyTrack.quran => StudyCategory.quran,
+        StudyTrack.mafatih || StudyTrack.sahifa || StudyTrack.sahifaAlawiyya => StudyCategory.dua,
+        StudyTrack.balaghaSermons ||
+        StudyTrack.balaghaLetters ||
+        StudyTrack.balaghaWisdom =>
+          StudyCategory.balagha,
+        StudyTrack.sistani || StudyTrack.najafi => StudyCategory.fatawa,
+        StudyTrack.encyclopedia => StudyCategory.articles,
+        _ => StudyCategory.hadith,
+      };
+
+  /// True when [query] (Urdu or Latin) names this track, its shelf, or its
+  /// subtitle. An empty query matches everything.
+  bool matchesQuery(String query) {
+    final needle = query.trim();
+    if (needle.isEmpty) return true;
+    final pool = <String>[titleUrdu, subtitleUrdu, category.labelUrdu, name].join(' ');
+    return pool.toLowerCase().contains(needle.toLowerCase());
+  }
+
   /// What the daily range counts in this book.
   String get unitLabelUrdu => switch (this) {
         StudyTrack.quran => 'صفحہ',
@@ -100,6 +125,28 @@ enum StudyTrack {
         _ => 'متن',
       };
 }
+
+/// The shelf a [StudyTrack] belongs to, used to group and filter the picker.
+enum StudyCategory {
+  all('سب'),
+  quran('قرآن'),
+  dua('دعائیں'),
+  balagha('نہج البلاغہ'),
+  hadith('احادیث'),
+  fatawa('فتاویٰ'),
+  articles('مضامین');
+
+  const StudyCategory(this.labelUrdu);
+
+  final String labelUrdu;
+}
+
+/// Day counts offered as one-tap chips; any other length can be typed.
+const List<int> kStudyDayPresets = <int>[7, 14, 30, 60, 90, 180, 365];
+
+/// Bounds for a custom plan length: a week up to ten years.
+const int kMinStudyDays = 1;
+const int kMaxStudyDays = 3650;
 
 /// The mushaf's page count, fixed in every printed edition.
 const int kQuranPages = 604;
@@ -143,18 +190,33 @@ class StudyPlan {
   bool get isMultiBook => extraTracks.isNotEmpty;
 
   StudyPlan copyWith({
+    StudyTrack? track,
     int? days,
     String? startedOn,
     Set<int>? completedDays,
     List<StudyTrack>? extraTracks,
   }) =>
       StudyPlan(
-        track: track,
+        track: track ?? this.track,
         days: days ?? this.days,
         startedOn: startedOn ?? this.startedOn,
         completedDays: completedDays ?? this.completedDays,
         extraTracks: extraTracks ?? this.extraTracks,
       );
+
+  /// Updates the books in this active plan while keeping [startedOn], [days],
+  /// and [completedDays] intact. Deduplicates while preserving selection order.
+  StudyPlan withTracks(List<StudyTrack> selected) {
+    final unique = <StudyTrack>[];
+    for (final candidate in selected) {
+      if (!unique.contains(candidate)) unique.add(candidate);
+    }
+    if (unique.isEmpty) return this;
+    return copyWith(
+      track: unique.first,
+      extraTracks: unique.skip(1).toList(),
+    );
+  }
 
   /// A day is finished, or un-finished again on a second tap.
   StudyPlan toggledDay(int day) {
@@ -182,9 +244,12 @@ class StudyPlan {
     final startedOn = raw['startedOn'];
     if (found == null || days is! int || days <= 0 || startedOn is! String) return null;
     final track = found;
+    // A hand-edited or corrupted length must not ask the day grid to build a
+    // million dots: the plan is clamped to the picker's own range instead.
+    final length = days.clamp(kMinStudyDays, kMaxStudyDays).toInt();
     final completed = <int>{
       for (final day in (raw['completedDays'] as List<Object?>? ?? const <Object?>[]))
-        if (day is int && day > 0) day,
+        if (day is int && day > 0 && day <= length) day,
     };
     // The other books of the plan: a name that is no longer known is simply
     // left out, the same way an unknown first book leaves no plan at all.
@@ -198,7 +263,7 @@ class StudyPlan {
     }
     return StudyPlan(
       track: track,
-      days: days,
+      days: length,
       startedOn: startedOn,
       completedDays: completed,
       extraTracks: extra,

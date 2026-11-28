@@ -6,7 +6,7 @@ import '../app_theme.dart';
 import '../daily_study.dart';
 import '../library_repository.dart';
 import '../models.dart';
-import '../text_utils.dart' show arabicNumerals;
+import '../text_utils.dart' show arabicNumerals, parseReaderNumber;
 import 'balagha_screen.dart';
 import 'duas_screen.dart';
 import 'library_screen.dart';
@@ -142,6 +142,39 @@ class _DailyStudyScreenState extends State<DailyStudyScreen> {
     await _store.save(next);
   }
 
+  Future<void> _updateTracks(List<StudyTrack> tracks) async {
+    final plan = _plan;
+    if (plan == null || tracks.isEmpty) return;
+    final next = plan.withTracks(tracks);
+    await _store.save(next);
+    if (!mounted) return;
+    setState(() {
+      _plan = next;
+      _entries.clear();
+      _studyUnits.clear();
+      _units.clear();
+      _dataMissing = null;
+    });
+    await _measure(next.tracks);
+  }
+
+  Future<void> _openTrackEditor() async {
+    final plan = _plan;
+    if (plan == null) return;
+    final updated = await showModalBottomSheet<List<StudyTrack>>(
+      context: context,
+      isScrollControlled: true,
+      backgroundColor: Colors.transparent,
+      builder: (_) => _ManageTracksSheet(
+        initialTracks: plan.tracks,
+        library: widget.library,
+      ),
+    );
+    if (updated != null && updated.isNotEmpty) {
+      await _updateTracks(updated);
+    }
+  }
+
   Future<void> _reset() async {
     final confirmed = await showDialog<bool>(
       context: context,
@@ -242,6 +275,95 @@ class _DailyStudyScreenState extends State<DailyStudyScreen> {
     ));
   }
 
+  /// The portion every readable book of [plan] falls into on [day].
+  List<(StudyTrack, StudyPortion)> _portionsFor(StudyPlan plan, int day) =>
+      <(StudyTrack, StudyPortion)>[
+        for (final track in plan.tracks)
+          if ((_units[track] ?? 0) > 0)
+            (
+              track,
+              StudyPortion.forDay(
+                day: day,
+                days: plan.days,
+                totalUnits: _units[track]!,
+                unitLabelUrdu: track.unitLabelUrdu,
+              ),
+            ),
+      ];
+
+  /// Jumps to any day of the plan, not only today: catching up on a missed
+  /// day, or reading ahead, opens exactly the portion that day assigned.
+  Future<void> _openDay(StudyPlan plan, int day) async {
+    final portions = _portionsFor(plan, day.clamp(1, plan.days).toInt());
+    if (portions.isEmpty) return;
+    if (portions.length == 1) {
+      await _openPortion(portions.first.$1, portions.first.$2);
+      return;
+    }
+    if (!mounted) return;
+    final picked = await showModalBottomSheet<(StudyTrack, StudyPortion)>(
+      context: context,
+      backgroundColor: const Color(0xFF0E231E),
+      shape: const RoundedRectangleBorder(
+        borderRadius: BorderRadius.vertical(top: Radius.circular(22)),
+      ),
+      builder: (context) => SafeArea(
+        top: false,
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.stretch,
+          children: <Widget>[
+            Padding(
+              padding: const EdgeInsets.fromLTRB(18, 16, 18, 6),
+              child: JustifiedText(
+                'دن ${arabicNumerals(day)} — کون سی کتاب؟',
+                style: const TextStyle(
+                  fontSize: 15.5,
+                  fontWeight: FontWeight.w800,
+                  color: Color(0xFFFFE1A1),
+                ),
+              ),
+            ),
+            for (final (track, portion) in portions)
+              ListTile(
+                title: JustifiedText(
+                  track.titleUrdu,
+                  style: const TextStyle(color: Colors.white, fontSize: 14),
+                ),
+                subtitle: Text(
+                  '${track.unitLabelUrdu} ${arabicNumerals(portion.first)}'
+                  '${portion.last == portion.first ? '' : ' تا ${arabicNumerals(portion.last)}'}',
+                  style: const TextStyle(color: Color(0xFFB9CEC4), fontSize: 12),
+                ),
+                trailing: const Icon(Icons.chevron_left_rounded, color: Color(0xFFCFE3D9)),
+                onTap: () => Navigator.of(context).pop((track, portion)),
+              ),
+            const SizedBox(height: 8),
+          ],
+        ),
+      ),
+    );
+    if (picked != null) await _openPortion(picked.$1, picked.$2);
+  }
+
+  /// Asks which plan day to open, then opens it.
+  Future<void> _pickDayToOpen(StudyPlan plan, int today) async {
+    final day = await showModalBottomSheet<int>(
+      context: context,
+      isScrollControlled: true,
+      backgroundColor: const Color(0xFF0E231E),
+      shape: const RoundedRectangleBorder(
+        borderRadius: BorderRadius.vertical(top: Radius.circular(22)),
+      ),
+      builder: (context) => _DayPickerSheet(
+        days: plan.days,
+        today: today,
+        completedDays: plan.completedDays,
+      ),
+    );
+    if (day != null) await _openDay(plan, day);
+  }
+
   @override
   Widget build(BuildContext context) {
     return Scaffold(
@@ -287,33 +409,19 @@ class _DailyStudyScreenState extends State<DailyStudyScreen> {
   List<Widget> _planBody(StudyPlan plan) {
     final now = DateTime.now();
     final today = StudyPortion.dayNumberFor(plan.startedOn, now);
-    // The books whose data is installed: a plan may name more than one book,
-    // and only the installed ones can be read.
-    final ready = <StudyTrack>[
-      for (final track in plan.tracks)
-        if ((_units[track] ?? 0) > 0) track,
-    ];
-    if (ready.isEmpty) {
+    // A plan day beyond the book's length (the reader finished early or the
+    // clock moved) simply shows the last portion instead of an empty card.
+    final portions = _portionsFor(plan, today);
+    if (portions.isEmpty) {
       return <Widget>[
         if (_dataMissing != null) _Notice(_dataMissing!),
         const SizedBox(height: 14),
         _PlanBuilder(active: true, onStart: _start, initialTracks: plan.tracks, initialDays: plan.days),
       ];
     }
-    // A plan day beyond the book's length (the reader finished early or the
-    // clock moved) simply shows the last portion instead of an empty card.
-    final portions = <(StudyTrack, StudyPortion)>[
-      for (final track in ready)
-        (
-          track,
-          StudyPortion.forDay(
-            day: today,
-            days: plan.days,
-            totalUnits: _units[track]!,
-            unitLabelUrdu: track.unitLabelUrdu,
-          ),
-        ),
-    ];
+    // The books whose data is installed: a plan may name more than one book,
+    // and only the installed ones can be read.
+    final ready = <StudyTrack>[for (final (track, _) in portions) track];
     final done = plan.completedDays.length;
     final streak = studyStreak(plan, today);
     final finished = today > plan.days || (done >= plan.days);
@@ -323,6 +431,11 @@ class _DailyStudyScreenState extends State<DailyStudyScreen> {
         _Notice(_dataMissing!),
         const SizedBox(height: 12),
       ],
+      _ActiveBooksStrip(
+        tracks: plan.tracks,
+        onManage: _openTrackEditor,
+      ),
+      const SizedBox(height: 12),
       for (final (track, portion) in portions) ...<Widget>[
         _TodayCard(
           track: track,
@@ -357,8 +470,27 @@ class _DailyStudyScreenState extends State<DailyStudyScreen> {
         ],
       ),
       const SizedBox(height: 14),
-      _ProgressCard(plan: plan, today: today, onToggleDay: (day) => unawaited(_toggleDay(day))),
+      _ProgressCard(
+        plan: plan,
+        today: today,
+        onToggleDay: (day) => unawaited(_toggleDay(day)),
+        onOpenDay: (day) => unawaited(_openDay(plan, day)),
+        onPickDay: () => unawaited(_pickDayToOpen(plan, today)),
+      ),
       const SizedBox(height: 14),
+      FilledButton.tonalIcon(
+        key: const ValueKey<String>('daily-study-manage-books'),
+        onPressed: _openTrackEditor,
+        icon: const Icon(Icons.library_add_rounded, size: 18),
+        label: const JustifiedText('منصوبے میں مزید کتابیں شامل / تبدیل کریں'),
+        style: FilledButton.styleFrom(
+          backgroundColor: kGold.withValues(alpha: 0.22),
+          foregroundColor: const Color(0xFFFFE1A1),
+          side: BorderSide(color: kGold.withValues(alpha: 0.65)),
+          padding: const EdgeInsets.symmetric(vertical: 13),
+        ),
+      ),
+      const SizedBox(height: 10),
       OutlinedButton.icon(
         onPressed: _reset,
         icon: const Icon(Icons.restart_alt, size: 18),
@@ -446,12 +578,21 @@ class _PlanBuilder extends StatefulWidget {
 }
 
 class _PlanBuilderState extends State<_PlanBuilder> {
-  static const List<int> _lengths = <int>[7, 14, 30, 60, 90, 180];
-
   late List<StudyTrack> _tracks = <StudyTrack>[
     ...(widget.initialTracks ?? const <StudyTrack>[StudyTrack.quran]),
   ];
   late int _days = widget.initialDays ?? 90;
+  late final TextEditingController _search = TextEditingController();
+  late final TextEditingController _customDays =
+      TextEditingController(text: kStudyDayPresets.contains(_days) ? '' : '${_days}');
+  StudyCategory _category = StudyCategory.all;
+
+  @override
+  void dispose() {
+    _search.dispose();
+    _customDays.dispose();
+    super.dispose();
+  }
 
   /// Adds or removes a book. The last one never goes: a plan without a book
   /// has nothing to read.
@@ -462,6 +603,26 @@ class _PlanBuilderState extends State<_PlanBuilder> {
       } else {
         _tracks.add(track);
       }
+    });
+  }
+
+  /// Books matching the current search text and shelf filter. A book that is
+  /// already selected stays visible even when filtered out, so the reader never
+  /// loses track of what the plan contains.
+  List<StudyTrack> get _visibleTracks => <StudyTrack>[
+        for (final track in StudyTrack.values)
+          if (_tracks.contains(track) ||
+              ((track.category == _category || _category == StudyCategory.all) &&
+                  track.matchesQuery(_search.text)))
+            track,
+      ];
+
+  /// Accepts a typed length in Latin, Urdu, or Arabic-Indic digits.
+  void _onCustomDaysChanged(String value) {
+    final typed = parseReaderNumber(value);
+    setState(() {
+      if (typed == null) return;
+      _days = typed.clamp(kMinStudyDays, kMaxStudyDays).toInt();
     });
   }
 
@@ -477,9 +638,31 @@ class _PlanBuilderState extends State<_PlanBuilder> {
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.stretch,
         children: <Widget>[
-          const JustifiedText(
-            'کون سی کتابیں؟',
-            style: TextStyle(fontSize: 15, fontWeight: FontWeight.w800, color: Color(0xFFFFE1A1)),
+          Row(
+            children: <Widget>[
+              const Expanded(
+                child: JustifiedText(
+                  'کون سی کتابیں؟',
+                  style: TextStyle(fontSize: 15, fontWeight: FontWeight.w800, color: Color(0xFFFFE1A1)),
+                ),
+              ),
+              Container(
+                padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 3),
+                decoration: BoxDecoration(
+                  borderRadius: BorderRadius.circular(12),
+                  color: kGold.withValues(alpha: 0.22),
+                  border: Border.all(color: kGold.withValues(alpha: 0.6)),
+                ),
+                child: Text(
+                  '${arabicNumerals(_tracks.length)} منتخب',
+                  style: const TextStyle(
+                    fontSize: 12,
+                    fontWeight: FontWeight.w700,
+                    color: Color(0xFFFFE1A1),
+                  ),
+                ),
+              ),
+            ],
           ),
           const SizedBox(height: 4),
           const JustifiedText(
@@ -487,7 +670,72 @@ class _PlanBuilderState extends State<_PlanBuilder> {
             style: TextStyle(fontSize: 11.5, height: 1.6, color: Color(0xFFB9CEC4)),
           ),
           const SizedBox(height: 10),
-          for (final track in StudyTrack.values) ...<Widget>[
+          TextField(
+            key: const ValueKey<String>('daily-study-search'),
+            controller: _search,
+            onChanged: (_) => setState(() {}),
+            style: const TextStyle(color: Colors.white, fontSize: 13.5),
+            textInputAction: TextInputAction.search,
+            decoration: InputDecoration(
+              isDense: true,
+              hintText: 'کتاب تلاش کریں…',
+              hintStyle: const TextStyle(color: Color(0xFF9FB6AB), fontSize: 12.5),
+              prefixIcon: Icon(Icons.search_rounded, size: 19, color: kGold),
+              suffixIcon: _search.text.isEmpty
+                  ? null
+                  : IconButton(
+                      tooltip: 'تلاش صاف کریں',
+                      icon: const Icon(Icons.close_rounded, size: 17),
+                      color: const Color(0xFFCFE3D9),
+                      onPressed: () => setState(_search.clear),
+                    ),
+              filled: true,
+              fillColor: Colors.white.withValues(alpha: 0.05),
+              contentPadding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
+              border: OutlineInputBorder(
+                borderRadius: BorderRadius.circular(14),
+                borderSide: BorderSide(color: Colors.white.withValues(alpha: 0.14)),
+              ),
+              enabledBorder: OutlineInputBorder(
+                borderRadius: BorderRadius.circular(14),
+                borderSide: BorderSide(color: Colors.white.withValues(alpha: 0.14)),
+              ),
+              focusedBorder: OutlineInputBorder(
+                borderRadius: BorderRadius.circular(14),
+                borderSide: BorderSide(color: kGold.withValues(alpha: 0.8)),
+              ),
+            ),
+          ),
+          const SizedBox(height: 10),
+          SingleChildScrollView(
+            scrollDirection: Axis.horizontal,
+            child: Row(
+              children: <Widget>[
+                for (final category in StudyCategory.values) ...<Widget>[
+                  ChoiceChip(
+                    key: ValueKey<String>('daily-study-category-${category.name}'),
+                    label: Text(category.labelUrdu),
+                    selected: _category == category,
+                    onSelected: (_) => setState(() => _category = category),
+                    selectedColor: kGold.withValues(alpha: 0.30),
+                    labelStyle: TextStyle(
+                      fontSize: 12,
+                      color: _category == category
+                          ? const Color(0xFFFFE1A1)
+                          : const Color(0xFFCFE3D9),
+                      fontWeight: FontWeight.w700,
+                    ),
+                    backgroundColor: Colors.white.withValues(alpha: 0.06),
+                    side: BorderSide(color: kGold.withValues(alpha: 0.35)),
+                    visualDensity: VisualDensity.compact,
+                  ),
+                  const SizedBox(width: 6),
+                ],
+              ],
+            ),
+          ),
+          const SizedBox(height: 10),
+          for (final track in _visibleTracks) ...<Widget>[
             _TrackRow(
               track: track,
               selected: _tracks.contains(track),
@@ -495,6 +743,14 @@ class _PlanBuilderState extends State<_PlanBuilder> {
             ),
             const SizedBox(height: 8),
           ],
+          if (_visibleTracks.isEmpty)
+            const Padding(
+              padding: EdgeInsets.symmetric(vertical: 8),
+              child: JustifiedText(
+                'اس تلاش یا شعبے میں کوئی کتاب نہیں ملی۔',
+                style: TextStyle(fontSize: 12.5, color: Color(0xFFB9CEC4)),
+              ),
+            ),
           const SizedBox(height: 6),
           const JustifiedText(
             'کتنی مدت میں؟',
@@ -505,11 +761,14 @@ class _PlanBuilderState extends State<_PlanBuilder> {
             spacing: 8,
             runSpacing: 8,
             children: <Widget>[
-              for (final days in _lengths)
+              for (final days in kStudyDayPresets)
                 ChoiceChip(
                   label: Text('${arabicNumerals(days)} دن'),
                   selected: _days == days,
-                  onSelected: (_) => setState(() => _days = days),
+                  onSelected: (_) => setState(() {
+                    _days = days;
+                    _customDays.clear();
+                  }),
                   selectedColor: kGold.withValues(alpha: 0.30),
                   labelStyle: TextStyle(
                     color: _days == days ? const Color(0xFFFFE1A1) : const Color(0xFFCFE3D9),
@@ -518,7 +777,47 @@ class _PlanBuilderState extends State<_PlanBuilder> {
                   backgroundColor: Colors.white.withValues(alpha: 0.06),
                   side: BorderSide(color: kGold.withValues(alpha: 0.35)),
                 ),
+              SizedBox(
+                width: 118,
+                child: TextField(
+                  key: const ValueKey<String>('daily-study-custom-days'),
+                  controller: _customDays,
+                  onChanged: _onCustomDaysChanged,
+                  keyboardType: TextInputType.number,
+                  textAlign: TextAlign.center,
+                  style: const TextStyle(
+                    color: Color(0xFFFFE1A1),
+                    fontSize: 13,
+                    fontWeight: FontWeight.w700,
+                  ),
+                  decoration: InputDecoration(
+                    isDense: true,
+                    hintText: 'اپنی مدت',
+                    hintStyle: const TextStyle(color: Color(0xFF9FB6AB), fontSize: 12),
+                    filled: true,
+                    fillColor: Colors.white.withValues(alpha: 0.05),
+                    contentPadding: const EdgeInsets.symmetric(horizontal: 8, vertical: 10),
+                    border: OutlineInputBorder(
+                      borderRadius: BorderRadius.circular(18),
+                      borderSide: BorderSide(color: kGold.withValues(alpha: 0.35)),
+                    ),
+                    enabledBorder: OutlineInputBorder(
+                      borderRadius: BorderRadius.circular(18),
+                      borderSide: BorderSide(color: kGold.withValues(alpha: 0.35)),
+                    ),
+                    focusedBorder: OutlineInputBorder(
+                      borderRadius: BorderRadius.circular(18),
+                      borderSide: BorderSide(color: kGold.withValues(alpha: 0.85)),
+                    ),
+                  ),
+                ),
+              ),
             ],
+          ),
+          const SizedBox(height: 8),
+          JustifiedText(
+            'منتخب مدت: ${arabicNumerals(_days)} دن — ہر کتاب اتنے ہی دنوں میں تقسیم ہو گی۔',
+            style: const TextStyle(fontSize: 11.5, height: 1.6, color: Color(0xFFB9CEC4)),
           ),
           const SizedBox(height: 16),
           FilledButton.icon(
@@ -792,11 +1091,19 @@ class _StatTile extends StatelessWidget {
 /// The whole plan as a grid of days: tap a day to mark it, so a reader who read
 /// ahead (or caught up on a missed day) can fix the record without hunting.
 class _ProgressCard extends StatelessWidget {
-  const _ProgressCard({required this.plan, required this.today, required this.onToggleDay});
+  const _ProgressCard({
+    required this.plan,
+    required this.today,
+    required this.onToggleDay,
+    required this.onOpenDay,
+    required this.onPickDay,
+  });
 
   final StudyPlan plan;
   final int today;
   final void Function(int day) onToggleDay;
+  final void Function(int day) onOpenDay;
+  final VoidCallback onPickDay;
 
   @override
   Widget build(BuildContext context) {
@@ -816,8 +1123,8 @@ class _ProgressCard extends StatelessWidget {
           ),
           const SizedBox(height: 4),
           const JustifiedText(
-            'کسی بھی دن پر انگلی رکھ کر اسے مکمل یا ادھورا کر سکتے ہیں۔',
-            style: TextStyle(fontSize: 11.5, color: Color(0xFFB9CEC4)),
+            'کسی بھی دن پر انگلی رکھ کر اسے مکمل یا ادھورا کر سکتے ہیں، اور دو بار تھپتھپا کر اُس دن کا حصہ کھولیں۔',
+            style: TextStyle(fontSize: 11.5, height: 1.6, color: Color(0xFFB9CEC4)),
           ),
           const SizedBox(height: 12),
           Wrap(
@@ -830,8 +1137,21 @@ class _ProgressCard extends StatelessWidget {
                   done: plan.completedDays.contains(day),
                   isToday: day == today,
                   onTap: () => onToggleDay(day),
+                  onOpen: () => onOpenDay(day),
                 ),
             ],
+          ),
+          const SizedBox(height: 12),
+          FilledButton.tonalIcon(
+            key: const ValueKey<String>('daily-study-jump-day'),
+            onPressed: onPickDay,
+            icon: const Icon(Icons.event_available_rounded, size: 18),
+            label: const JustifiedText('کسی بھی دن کا حصہ کھولیں'),
+            style: FilledButton.styleFrom(
+              backgroundColor: Colors.white.withValues(alpha: 0.10),
+              foregroundColor: const Color(0xFFFFE1A1),
+              padding: const EdgeInsets.symmetric(vertical: 11),
+            ),
           ),
         ],
       ),
@@ -839,19 +1159,127 @@ class _ProgressCard extends StatelessWidget {
   }
 }
 
+/// A full-height grid of every plan day: pick one and the screen opens the
+/// portion that day assigned. Completion is shown, but choosing a day here
+/// never changes the record.
+class _DayPickerSheet extends StatelessWidget {
+  const _DayPickerSheet({
+    required this.days,
+    required this.today,
+    required this.completedDays,
+  });
+
+  final int days;
+  final int today;
+  final Set<int> completedDays;
+
+  @override
+  Widget build(BuildContext context) {
+    return ConstrainedBox(
+      constraints: BoxConstraints(maxHeight: MediaQuery.sizeOf(context).height * 0.8),
+      child: SafeArea(
+        top: false,
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.stretch,
+          children: <Widget>[
+            Padding(
+              padding: const EdgeInsets.fromLTRB(18, 16, 18, 4),
+              child: JustifiedText(
+                'کون سا دن کھولیں؟',
+                style: const TextStyle(
+                  fontSize: 16,
+                  fontWeight: FontWeight.w800,
+                  color: Color(0xFFFFE1A1),
+                ),
+              ),
+            ),
+            const Padding(
+              padding: EdgeInsets.fromLTRB(18, 0, 18, 10),
+              child: JustifiedText(
+                'گذشتہ دنوں کا حصہ پڑھنے یا آگے کا حصہ دیکھنے کے لیے دن منتخب کریں۔',
+                style: TextStyle(fontSize: 11.5, height: 1.6, color: Color(0xFFB9CEC4)),
+              ),
+            ),
+            Expanded(
+              child: SingleChildScrollView(
+                padding: const EdgeInsets.fromLTRB(16, 0, 16, 16),
+                child: Wrap(
+                  spacing: 8,
+                  runSpacing: 8,
+                  children: <Widget>[
+                    for (var day = 1; day <= days; day++)
+                      InkWell(
+                        key: ValueKey<String>('daily-study-day-$day'),
+                        borderRadius: BorderRadius.circular(12),
+                        onTap: () => Navigator.of(context).pop(day),
+                        child: Container(
+                          width: 54,
+                          padding: const EdgeInsets.symmetric(vertical: 9),
+                          alignment: Alignment.center,
+                          decoration: BoxDecoration(
+                            borderRadius: BorderRadius.circular(12),
+                            color: day == today
+                                ? kGold.withValues(alpha: 0.26)
+                                : Colors.white.withValues(alpha: 0.06),
+                            border: Border.all(
+                              color: day == today
+                                  ? kGold
+                                  : Colors.white.withValues(alpha: 0.14),
+                              width: day == today ? 1.6 : 1,
+                            ),
+                          ),
+                          child: Column(
+                            mainAxisSize: MainAxisSize.min,
+                            children: <Widget>[
+                              Text(
+                                arabicNumerals(day),
+                                style: const TextStyle(
+                                  fontFamily: kDigitFont,
+                                  fontSize: 13,
+                                  fontWeight: FontWeight.w800,
+                                  color: Colors.white,
+                                ),
+                              ),
+                              if (completedDays.contains(day))
+                                Icon(Icons.check_rounded, size: 12, color: kGold.withValues(alpha: 0.9)),
+                            ],
+                          ),
+                        ),
+                      ),
+                  ],
+                ),
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
 class _DayDot extends StatelessWidget {
-  const _DayDot({required this.day, required this.done, required this.isToday, required this.onTap});
+  const _DayDot({
+    required this.day,
+    required this.done,
+    required this.isToday,
+    required this.onTap,
+    required this.onOpen,
+  });
 
   final int day;
   final bool done;
   final bool isToday;
   final VoidCallback onTap;
 
+  /// Long-press opens that day's portion without touching the record.
+  final VoidCallback onOpen;
+
   @override
   Widget build(BuildContext context) {
     return InkWell(
       borderRadius: BorderRadius.circular(8),
       onTap: onTap,
+      onLongPress: onOpen,
       child: Container(
         width: 26,
         height: 26,
@@ -899,6 +1327,202 @@ class _Notice extends StatelessWidget {
       child: JustifiedText(
         message,
         style: const TextStyle(fontSize: 13, height: 1.7, color: Color(0xFFFFE7DA)),
+      ),
+    );
+  }
+}
+
+/// Summary banner at the top of an active plan showing every book currently
+/// included, with one-tap access to add or remove books without resetting.
+class _ActiveBooksStrip extends StatelessWidget {
+  const _ActiveBooksStrip({
+    required this.tracks,
+    required this.onManage,
+  });
+
+  final List<StudyTrack> tracks;
+  final VoidCallback onManage;
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      key: const ValueKey<String>('daily-study-active-books'),
+      padding: const EdgeInsets.fromLTRB(14, 12, 12, 12),
+      decoration: BoxDecoration(
+        borderRadius: BorderRadius.circular(18),
+        color: Colors.white.withValues(alpha: 0.06),
+        border: Border.all(color: kGold.withValues(alpha: 0.45)),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        children: <Widget>[
+          Row(
+            children: <Widget>[
+              Icon(Icons.collections_bookmark_rounded, size: 18, color: kGold),
+              const SizedBox(width: 8),
+              Expanded(
+                child: JustifiedText(
+                  'منصوبے کی کتابیں (${arabicNumerals(tracks.length)})',
+                  style: const TextStyle(
+                    fontSize: 14,
+                    fontWeight: FontWeight.w800,
+                    color: Color(0xFFFFE1A1),
+                  ),
+                ),
+              ),
+              TextButton.icon(
+                key: const ValueKey<String>('daily-study-add-books-top'),
+                onPressed: onManage,
+                icon: const Icon(Icons.add_circle_outline_rounded, size: 17),
+                label: const Text('کتاب شامل کریں'),
+                style: TextButton.styleFrom(
+                  foregroundColor: const Color(0xFFFFE1A1),
+                  visualDensity: VisualDensity.compact,
+                ),
+              ),
+            ],
+          ),
+          const SizedBox(height: 8),
+          Wrap(
+            spacing: 7,
+            runSpacing: 7,
+            children: <Widget>[
+              for (final track in tracks)
+                Container(
+                  padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 5),
+                  decoration: BoxDecoration(
+                    borderRadius: BorderRadius.circular(12),
+                    color: kGold.withValues(alpha: 0.16),
+                    border: Border.all(color: kGold.withValues(alpha: 0.5)),
+                  ),
+                  child: Text(
+                    track.titleUrdu,
+                    style: const TextStyle(
+                      fontSize: 12.5,
+                      fontWeight: FontWeight.w700,
+                      color: Colors.white,
+                    ),
+                  ),
+                ),
+            ],
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+/// Modal bottom sheet allowing the reader to select/deselect any number of
+/// books in an active study plan while preserving streak and completed days.
+class _ManageTracksSheet extends StatefulWidget {
+  const _ManageTracksSheet({
+    required this.initialTracks,
+    required this.library,
+  });
+
+  final List<StudyTrack> initialTracks;
+  final LibraryRepository library;
+
+  @override
+  State<_ManageTracksSheet> createState() => _ManageTracksSheetState();
+}
+
+class _ManageTracksSheetState extends State<_ManageTracksSheet> {
+  late final List<StudyTrack> _selected = <StudyTrack>[...widget.initialTracks];
+
+  void _toggle(StudyTrack track) {
+    setState(() {
+      if (_selected.contains(track)) {
+        if (_selected.length > 1) _selected.remove(track);
+      } else {
+        _selected.add(track);
+      }
+    });
+  }
+
+  void _selectAllInstalled() {
+    setState(() {
+      for (final track in StudyTrack.values) {
+        final book = BookDefinition.byKey(track.bookKey);
+        if (book != null && widget.library.isInstalled(book) && !_selected.contains(track)) {
+          _selected.add(track);
+        }
+      }
+    });
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final maxHeight = MediaQuery.sizeOf(context).height * 0.82;
+    return ConstrainedBox(
+      constraints: BoxConstraints(maxHeight: maxHeight),
+      child: Container(
+        decoration: BoxDecoration(
+          color: const Color(0xFF0E231E),
+          borderRadius: const BorderRadius.vertical(top: Radius.circular(24)),
+          border: Border(top: BorderSide(color: kGold.withValues(alpha: 0.65), width: 1.4)),
+        ),
+        padding: const EdgeInsets.fromLTRB(16, 14, 16, 20),
+        child: SafeArea(
+          top: false,
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.stretch,
+            children: <Widget>[
+              Row(
+                children: <Widget>[
+                  const Expanded(
+                    child: JustifiedText(
+                      'منصوبے کی کتابیں منتخب کریں',
+                      style: TextStyle(
+                        fontSize: 16.5,
+                        fontWeight: FontWeight.w800,
+                        color: Color(0xFFFFE1A1),
+                      ),
+                    ),
+                  ),
+                  TextButton(
+                    onPressed: _selectAllInstalled,
+                    child: const Text(
+                      'انسٹال شدہ سب چنیں',
+                      style: TextStyle(color: Color(0xFFCFE3D9), fontSize: 12.5),
+                    ),
+                  ),
+                ],
+              ),
+              const JustifiedText(
+                'ایک وقت میں جتنی چاہیں کتابیں منتخب کریں؛ آپ کے مکمل شدہ دن اور آغاز کی تاریخ محفوظ رہے گی۔',
+                style: TextStyle(fontSize: 12, height: 1.6, color: Color(0xFFB9CEC4)),
+              ),
+              const SizedBox(height: 10),
+              Expanded(
+                child: ListView.separated(
+                  itemCount: StudyTrack.values.length,
+                  separatorBuilder: (_, __) => const SizedBox(height: 8),
+                  itemBuilder: (context, index) {
+                    final track = StudyTrack.values[index];
+                    return _TrackRow(
+                      track: track,
+                      selected: _selected.contains(track),
+                      onTap: () => _toggle(track),
+                    );
+                  },
+                ),
+              ),
+              const SizedBox(height: 12),
+              FilledButton.icon(
+                key: const ValueKey<String>('daily-study-save-books'),
+                onPressed: () => Navigator.of(context).pop(_selected),
+                icon: const Icon(Icons.check_rounded),
+                label: JustifiedText('محفوظ کریں (${arabicNumerals(_selected.length)} کتابیں)'),
+                style: FilledButton.styleFrom(
+                  backgroundColor: kGold,
+                  foregroundColor: const Color(0xFF1B1206),
+                  padding: const EdgeInsets.symmetric(vertical: 14),
+                ),
+              ),
+            ],
+          ),
+        ),
       ),
     );
   }

@@ -171,6 +171,7 @@ void main() {
       expect(StudyTrack.sahifa.bookKey, 'sahifa');
       expect(StudyTrack.sahifaAlawiyya.bookKey, 'sahifa_alawiyya');
       expect(StudyTrack.alkafi.bookKey, 'alkafi');
+      expect(StudyTrack.uyun.bookKey, 'uyun');
       expect(StudyTrack.encyclopedia.bookKey, 'athna_ashari_encyclopedia');
       expect(StudyTrack.values.map((track) => track.name), isNot(contains('khamenei')));
       expect(StudyTrack.values.map((track) => track.name), isNot(contains('tahzeeb')));
@@ -254,6 +255,78 @@ void main() {
       expect(quran.last, kQuranPages);
       expect(sermons.last, 241);
       expect(quran.days, sermons.days);
+    });
+
+    test('every track declares a shelf so the picker can filter it', () {
+      expect(StudyTrack.quran.category, StudyCategory.quran);
+      expect(StudyTrack.mafatih.category, StudyCategory.dua);
+      expect(StudyTrack.sahifaAlawiyya.category, StudyCategory.dua);
+      expect(StudyTrack.balaghaWisdom.category, StudyCategory.balagha);
+      expect(StudyTrack.alkafi.category, StudyCategory.hadith);
+      expect(StudyTrack.uyun.category, StudyCategory.hadith);
+      expect(StudyTrack.najafi.category, StudyCategory.fatawa);
+      expect(StudyTrack.encyclopedia.category, StudyCategory.articles);
+      // Every book belongs to a real shelf — none falls back to "all".
+      expect(
+        StudyTrack.values.map((track) => track.category).toSet(),
+        isNot(contains(StudyCategory.all)),
+      );
+    });
+
+    test('search matches a title, a subtitle, or a shelf', () {
+      expect(StudyTrack.uyun.matchesQuery('عیون'), isTrue);
+      expect(StudyTrack.uyun.matchesQuery('ماخذ'), isFalse);
+      expect(StudyTrack.uyun.matchesQuery('احادیث'), isTrue);
+      expect(StudyTrack.balaghaSermons.matchesQuery('خطبات'), isTrue);
+      expect(StudyTrack.uyun.matchesQuery(''), isTrue);
+      expect(StudyTrack.uyun.matchesQuery('   '), isTrue);
+      expect(StudyTrack.quran.matchesQuery('احادیث'), isFalse);
+    });
+
+    test('the duration presets cover one year and stay inside the bounds', () {
+      expect(kStudyDayPresets, <int>[7, 14, 30, 60, 90, 180, 365]);
+      expect(kMinStudyDays, 1);
+      expect(kMaxStudyDays, 3650);
+      expect(
+        kStudyDayPresets.every((days) => days >= kMinStudyDays && days <= kMaxStudyDays),
+        isTrue,
+      );
+    });
+
+    test('an absurd saved length is clamped instead of building a huge grid', () async {
+      SharedPreferences.setMockInitialValues(<String, Object>{
+        'daily_study_plan_v1':
+            '{"track":"quran","days":1000000,"startedOn":"2026-10-20","completedDays":[1,2,900000]}',
+      });
+      final plan = await StudyPlanStore().load();
+      expect(plan, isNotNull);
+      expect(plan!.days, kMaxStudyDays);
+      // Days beyond the (clamped) plan are dropped from the record.
+      expect(plan.completedDays, <int>{1, 2});
+    });
+
+    test('withTracks adds or reorders multiple books while preserving progress', () {
+      const plan = StudyPlan(
+        track: StudyTrack.quran,
+        days: 60,
+        startedOn: '2026-11-01',
+        completedDays: <int>{1, 2, 3},
+      );
+      final updated = plan.withTracks(<StudyTrack>[
+        StudyTrack.quran,
+        StudyTrack.uyun,
+        StudyTrack.sahifaAlawiyya,
+        StudyTrack.uyun,
+      ]);
+      expect(updated.tracks, <StudyTrack>[
+        StudyTrack.quran,
+        StudyTrack.uyun,
+        StudyTrack.sahifaAlawiyya,
+      ]);
+      expect(updated.days, 60);
+      expect(updated.startedOn, '2026-11-01');
+      expect(updated.completedDays, <int>{1, 2, 3});
+      expect(updated.isMultiBook, isTrue);
     });
   });
 }
