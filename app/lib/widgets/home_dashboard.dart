@@ -20,6 +20,7 @@ import '../screens/prayer_times_screen.dart';
 import '../screens/quran_screen.dart';
 import '../screens/tasbeeh_screen.dart';
 import '../services/prayer_controller.dart';
+import '../services/prayer_locations.dart' show LocationSource;
 import '../services/prayer_scope.dart';
 import '../services/tasbeeh_controller.dart';
 import 'sky_backdrop.dart';
